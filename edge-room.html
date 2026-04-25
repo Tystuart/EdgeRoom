@@ -1,0 +1,1456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Edge Room — Live Sports Betting Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800;900&family=Bitter:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     THE EDGE ROOM — Vintage Sportsbook
+     Dark felt + brass + sodium-vapor amber. Default theme is dark.
+     ============================================================ */
+
+  :root {
+    /* Default = vintage dark sportsbook */
+    --bg: #0F1612;
+    --bg-deep: #07090A;
+    --surface: #16201A;
+    --surface-2: #1E2A22;
+    --surface-3: #283529;
+    --text: #EFE6CE;
+    --text-muted: #A89E84;
+    --text-dim: #6B6753;
+    --rule: rgba(239, 230, 206, 0.12);
+    --rule-strong: rgba(239, 230, 206, 0.22);
+
+    --accent: #E0A052;          /* sodium-vapor brass */
+    --accent-bright: #F2BC72;
+    --accent-deep: #8C5520;
+    --accent-glow: rgba(224, 160, 82, 0.30);
+
+    --good: #82A85C;
+    --good-bg: rgba(130, 168, 92, 0.14);
+    --good-text: #B8D693;
+    --bad: #B85046;
+    --bad-bg: rgba(184, 80, 70, 0.14);
+    --bad-text: #E29C92;
+    --warn: #DBA84A;
+    --warn-bg: rgba(219, 168, 74, 0.14);
+    --warn-text: #ECC97D;
+    --info: #6E97B5;
+    --info-bg: rgba(110, 151, 181, 0.14);
+    --info-text: #A2C2DA;
+
+    --radius: 4px;
+    --radius-lg: 6px;
+
+    --font-display: "Big Shoulders Display", "Oswald", "Arial Narrow", sans-serif;
+    --font-body: "Bitter", Georgia, "Times New Roman", serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  /* Light theme = vintage almanac / racing form paper */
+  [data-theme="light"] {
+    --bg: #F0E9D6;
+    --bg-deep: #E4DCC4;
+    --surface: #F8F2DF;
+    --surface-2: #ECE3C8;
+    --surface-3: #E0D5B5;
+    --text: #1A1410;
+    --text-muted: #5C4F3E;
+    --text-dim: #8A7B62;
+    --rule: rgba(26, 20, 16, 0.18);
+    --rule-strong: rgba(26, 20, 16, 0.32);
+
+    --accent: #9A3F1B;
+    --accent-bright: #B85023;
+    --accent-deep: #6E2A0E;
+    --accent-glow: rgba(154, 63, 27, 0.20);
+
+    --good: #4A6E2C;
+    --good-bg: rgba(74, 110, 44, 0.16);
+    --good-text: #3A5722;
+    --bad: #8C2A20;
+    --bad-bg: rgba(140, 42, 32, 0.14);
+    --bad-text: #6E2018;
+    --warn: #92651A;
+    --warn-bg: rgba(146, 101, 26, 0.14);
+    --warn-text: #6E4A0E;
+    --info: #2C5878;
+    --info-bg: rgba(44, 88, 120, 0.14);
+    --info-text: #1F3F56;
+  }
+
+  * { box-sizing: border-box; }
+
+  /* Background: dark felt with subtle vignette + film grain */
+  body {
+    margin: 0;
+    background:
+      radial-gradient(ellipse at top, rgba(224, 160, 82, 0.06) 0%, transparent 55%),
+      radial-gradient(ellipse at bottom, rgba(0, 0, 0, 0.4) 0%, transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    position: relative;
+  }
+  /* Film grain overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 1;
+    opacity: 0.4;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.06 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    mix-blend-mode: overlay;
+  }
+  [data-theme="light"] body::before { opacity: 0.55; mix-blend-mode: multiply; }
+
+  .wrap { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; position: relative; z-index: 2; }
+
+  /* ============================================================
+     MASTHEAD — newspaper / casino marquee
+     ============================================================ */
+
+  .masthead {
+    border-top: 3px double var(--rule-strong);
+    border-bottom: 3px double var(--rule-strong);
+    padding: 16px 0 18px;
+    margin-bottom: 14px;
+    position: relative;
+  }
+  .masthead-meta {
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-dim);
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 14px;
+  }
+  .masthead-title {
+    display: flex; align-items: center; justify-content: center; gap: 18px;
+    flex-wrap: wrap;
+  }
+  .ornament {
+    font-family: var(--font-display);
+    color: var(--accent);
+    font-size: 28px;
+    line-height: 1;
+    letter-spacing: 0.3em;
+    opacity: 0.75;
+  }
+  h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(40px, 8vw, 64px);
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--text);
+    line-height: 0.9;
+    text-align: center;
+    text-shadow: 0 0 30px var(--accent-glow);
+  }
+  h1 .accent { color: var(--accent); }
+  .sub {
+    text-align: center;
+    font-style: italic;
+    color: var(--text-muted);
+    font-size: 14px;
+    margin: 12px 0 0;
+    letter-spacing: 0.02em;
+  }
+  .sub::before, .sub::after { content: '·'; margin: 0 10px; color: var(--accent); font-style: normal; }
+
+  .toolbar {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 16px; gap: 10px; flex-wrap: wrap;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+  }
+  .toolbar .status::before { content: '◆ '; color: var(--accent); }
+  .theme-btn {
+    background: transparent;
+    border: 1px solid var(--rule-strong);
+    width: 34px; height: 34px;
+    cursor: pointer; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted);
+    transition: all 0.2s;
+  }
+  .theme-btn:hover { background: var(--surface-2); color: var(--accent); border-color: var(--accent); }
+
+  /* ============================================================
+     CARDS, SURFACES
+     ============================================================ */
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-lg);
+    padding: 16px 18px;
+    position: relative;
+  }
+  .card::before {
+    /* faint inner highlight */
+    content: ''; position: absolute; inset: 0;
+    border-radius: var(--radius-lg);
+    border-top: 1px solid rgba(255,255,255,0.04);
+    pointer-events: none;
+  }
+  [data-theme="light"] .card::before { display: none; }
+
+  .stat {
+    background: var(--surface-2);
+    border-left: 2px solid var(--accent);
+    padding: 12px 14px;
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+  .label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    margin-bottom: 4px;
+  }
+  .val {
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: 0.01em;
+    color: var(--text);
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 3px 10px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.10em;
+    border-radius: 2px;
+    border: 1px solid transparent;
+  }
+  .pill-good { background: var(--good-bg); color: var(--good-text); border-color: rgba(130, 168, 92, 0.3); }
+  .pill-bad { background: var(--bad-bg); color: var(--bad-text); border-color: rgba(184, 80, 70, 0.3); }
+  .pill-info { background: var(--info-bg); color: var(--info-text); border-color: rgba(110, 151, 181, 0.3); }
+  .pill-warn { background: var(--warn-bg); color: var(--warn-text); border-color: rgba(219, 168, 74, 0.3); }
+  .pill-neutral { background: var(--surface-3); color: var(--text-muted); border-color: var(--rule); }
+
+  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+
+  /* ============================================================
+     FORM ELEMENTS
+     ============================================================ */
+
+  input, select, button, textarea { font-family: var(--font-body); font-size: 14px; }
+  input[type="text"], input[type="number"], select, textarea {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--rule-strong);
+    border-radius: var(--radius);
+    background: var(--bg-deep);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  button {
+    padding: 9px 16px;
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--rule-strong);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-family: var(--font-display);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 13px;
+    transition: all 0.15s;
+  }
+  button:hover { background: var(--surface-3); border-color: var(--accent); color: var(--accent); }
+  button.primary {
+    background: linear-gradient(180deg, var(--accent-bright) 0%, var(--accent) 100%);
+    color: var(--bg-deep);
+    border-color: var(--accent-deep);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.15) inset, 0 4px 12px rgba(0,0,0,0.25);
+  }
+  [data-theme="light"] button.primary { color: #FFF; }
+  button.primary:hover {
+    background: var(--accent-bright);
+    color: var(--bg-deep);
+    border-color: var(--accent-bright);
+    transform: translateY(-1px);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.15) inset, 0 6px 16px var(--accent-glow);
+  }
+  [data-theme="light"] button.primary:hover { color: #FFF; }
+
+  /* ============================================================
+     TABS — lit-up marquee buttons
+     ============================================================ */
+
+  .tabs {
+    display: flex; gap: 4px; flex-wrap: wrap;
+    margin: 22px 0 20px;
+    padding: 6px;
+    background: var(--bg-deep);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-lg);
+  }
+  .tab {
+    padding: 8px 14px;
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-dim);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .tab:hover { color: var(--accent); background: transparent; }
+  .tab.active {
+    color: var(--bg-deep);
+    background: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 0 14px var(--accent-glow);
+  }
+  [data-theme="light"] .tab.active { color: #FFF; }
+
+  .pane { display: none; }
+  .pane.active { display: block; animation: fadeIn 0.25s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ============================================================
+     ETC
+     ============================================================ */
+
+  .empty {
+    padding: 36px 20px; text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 13px;
+    border: 1px dashed var(--rule-strong);
+    border-radius: var(--radius-lg);
+  }
+  .mini {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .book-cell {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 8px;
+    text-align: center;
+    border-radius: var(--radius);
+    min-width: 0;
+  }
+  .book-best {
+    background: var(--good-bg);
+    color: var(--good-text);
+    font-weight: 700;
+    border: 1px solid rgba(130, 168, 92, 0.4);
+    box-shadow: 0 0 8px rgba(130, 168, 92, 0.2);
+  }
+  .book-norm { background: var(--surface-2); color: var(--text-muted); }
+
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--rule);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 12px; }
+  th, td { padding: 6px 8px; }
+  th {
+    color: var(--text-dim); font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.1em; font-size: 10px;
+    border-bottom: 1px solid var(--rule);
+    text-align: left;
+  }
+  tr + tr td { border-top: 1px solid var(--rule); }
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px dotted var(--accent); }
+  a:hover { color: var(--accent-bright); border-bottom-style: solid; }
+
+  /* Game cards */
+  .game-card { margin-bottom: 12px; }
+  .game-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 10px; gap: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .game-title {
+    font-family: var(--font-display);
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--text);
+  }
+  .scrollx { overflow-x: auto; }
+
+  /* Details / accordions */
+  details {
+    margin: 16px 0;
+    padding: 14px 18px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+  }
+  summary {
+    cursor: pointer;
+    font-family: var(--font-display);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 13px;
+    color: var(--text);
+  }
+  details[open] summary { margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--rule); }
+
+  /* Footer */
+  footer {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 3px double var(--rule-strong);
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 11px;
+    line-height: 1.8;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  footer a { color: var(--text-muted); border-bottom-color: var(--text-muted); }
+
+  .verdict {
+    font-size: 13px;
+    line-height: 1.6;
+    border-left: 3px solid var(--accent);
+    background: var(--bg-deep);
+  }
+
+  /* ============================================================
+     BET OF THE DAY — printed betting slip aesthetic
+     ============================================================ */
+
+  .bod-card {
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 22px, rgba(239,230,206,0.025) 22px, rgba(239,230,206,0.025) 23px),
+      var(--surface);
+    border: 1px solid var(--rule-strong);
+    border-radius: var(--radius);
+    padding: 0;
+    text-align: center;
+    position: relative;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4), 0 0 0 1px var(--rule);
+    overflow: hidden;
+  }
+  [data-theme="light"] .bod-card {
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 22px, rgba(26,20,16,0.04) 22px, rgba(26,20,16,0.04) 23px),
+      var(--surface);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.15), 0 0 0 1px var(--rule);
+  }
+  /* Perforated edges */
+  .bod-card::before, .bod-card::after {
+    content: ''; position: absolute; left: 0; right: 0; height: 6px;
+    background-image: radial-gradient(circle, var(--bg) 2px, transparent 2.5px);
+    background-size: 12px 6px; background-position: center;
+  }
+  .bod-card::before { top: -3px; }
+  .bod-card::after { bottom: -3px; }
+
+  .bod-inner { padding: 32px 24px 28px; position: relative; }
+
+  .bod-stamp {
+    position: absolute; top: 14px; right: 18px;
+    font-family: var(--font-mono);
+    font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .bod-serial {
+    position: absolute; top: 14px; left: 18px;
+    font-family: var(--font-mono);
+    font-size: 9px; letter-spacing: 0.18em;
+    color: var(--text-dim);
+  }
+
+  .bod-header {
+    font-family: var(--font-display);
+    font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--accent);
+    margin-top: 8px;
+    font-weight: 700;
+  }
+  .bod-rule { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 6px 0 4px; }
+  .bod-rule::before, .bod-rule::after {
+    content: ''; flex: 0 1 60px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+  .bod-rule-emblem { color: var(--accent); font-size: 14px; }
+
+  .bod-pick {
+    font-family: var(--font-display);
+    font-size: clamp(28px, 6vw, 38px);
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+    margin: 18px 0 6px;
+    color: var(--text);
+    line-height: 1;
+  }
+  .bod-matchup {
+    font-family: var(--font-body);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 0 0 16px;
+  }
+  .bod-line {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-muted);
+    padding: 10px 0;
+    border-top: 1px dashed var(--rule-strong);
+    border-bottom: 1px dashed var(--rule-strong);
+    margin: 14px 0;
+  }
+  .bod-line strong {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 16px;
+  }
+
+  .bod-stats {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    margin: 18px 0 10px;
+    border: 1px solid var(--rule);
+  }
+  .bod-stat-block {
+    padding: 14px 8px;
+    border-right: 1px solid var(--rule);
+    background: var(--bg-deep);
+  }
+  .bod-stat-block:last-child { border-right: none; }
+  .bod-stat-num {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1;
+  }
+  .bod-stat-num.good { color: var(--good); }
+  .bod-stat-lab {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    margin-top: 6px;
+  }
+
+  .bod-watermark {
+    font-family: var(--font-display);
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 16px;
+    letter-spacing: 0.4em;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .bod-watermark::before, .bod-watermark::after {
+    content: '◆'; margin: 0 10px; color: var(--accent); opacity: 0.6;
+  }
+
+  /* ============================================================
+     PARLAY LEGS
+     ============================================================ */
+
+  .parlay-leg {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 12px;
+    background: var(--surface-2);
+    border-left: 2px solid var(--accent);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    margin-bottom: 6px;
+  }
+  .parlay-leg input { padding: 7px 10px; font-size: 12px; }
+  .leg-rm { padding: 5px 10px; font-size: 10px; }
+
+  /* ============================================================
+     COIN
+     ============================================================ */
+
+  .coin {
+    width: 130px; height: 130px;
+    border-radius: 50%;
+    margin: 24px auto;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 24px;
+    letter-spacing: 0.06em;
+    background: radial-gradient(circle at 30% 30%, var(--accent-bright), var(--accent) 60%, var(--accent-deep));
+    color: var(--bg-deep);
+    box-shadow:
+      0 0 0 4px var(--bg-deep),
+      0 0 0 5px var(--accent-deep),
+      0 8px 24px rgba(0,0,0,0.5),
+      inset -4px -4px 12px rgba(0,0,0,0.3),
+      inset 4px 4px 12px rgba(255,255,255,0.2);
+    transition: transform 0.6s cubic-bezier(.45,1.7,.55,.9);
+    text-shadow: 0 1px 0 rgba(255,255,255,0.3);
+  }
+  .coin.flipping { transform: rotateY(1080deg) scale(1.1); }
+
+  /* ============================================================
+     TYPOGRAPHY HELPERS
+     ============================================================ */
+  strong { font-weight: 700; }
+  em { font-style: italic; }
+  ol, ul { padding-left: 24px; }
+  ol li, ul li { margin-bottom: 4px; }
+  p { margin: 0 0 12px; }
+
+  /* ============================================================
+     RESPONSIVE
+     ============================================================ */
+
+  @media (max-width: 520px) {
+    .wrap { padding: 20px 14px 60px; }
+    h1 { font-size: 38px; }
+    .ornament { display: none; }
+    .tab { padding: 7px 10px; font-size: 11px; }
+    .val { font-size: 22px; }
+    .bod-stat-num { font-size: 20px; }
+    .bod-pick { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <div class="masthead-meta">
+    <span>Vol. I · No. 1</span>
+    <span>Live Sportsbook Edition</span>
+    <span id="masthead-date"></span>
+  </div>
+  <div class="masthead-title">
+    <span class="ornament">◆◆◆</span>
+    <h1>The <span class="accent">Edge</span> Room</h1>
+    <span class="ornament">◆◆◆</span>
+  </div>
+  <p class="sub">Live odds · value finder · Kelly sizing · parlays · hedges · arbitrage</p>
+</header>
+
+<div class="toolbar">
+  <span class="status" id="status">Awaiting credentials</span>
+  <button class="theme-btn" id="themeBtn" title="Toggle theme" aria-label="Toggle theme">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+  </button>
+</div>
+
+<details id="aboutDetails">
+  <summary>What is this? <span class="mini" style="margin-left: 6px;">click to expand</span></summary>
+  <p style="margin: 8px 0; font-size: 13px; color: var(--text-muted); line-height: 1.6;">A self-contained sports betting analytics dashboard. Pulls live odds from major sportsbooks (DraftKings, FanDuel, BetMGM, Caesars, etc.) and gives you tools to find value, size bets correctly, build parlays, lock in profit on hedges, and settle group-chat arguments with a coin flip.</p>
+  <p style="margin: 8px 0 0; font-size: 13px; color: var(--text-muted); line-height: 1.6;"><strong>Tab quick reference:</strong></p>
+  <ul style="margin: 6px 0 0; padding-left: 22px; font-size: 13px; color: var(--text-muted); line-height: 1.7;">
+    <li><strong>Bet of the day</strong> — Auto-picks the highest-EV bet from current odds. Screenshot-ready card.</li>
+    <li><strong>Live odds</strong> — Compare prices across all books. Best price highlighted in green.</li>
+    <li><strong>Value finder</strong> — Scans for +EV bets vs. consensus fair line.</li>
+    <li><strong>Arbitrage</strong> — Two-way arbs where you can lock in profit.</li>
+    <li><strong>Parlay builder</strong> — Combine bets, see combined odds, payout, and EV.</li>
+    <li><strong>Kelly</strong> — Tells you how much to bet given your edge.</li>
+    <li><strong>Hedge</strong> — Lock in profit on a live ticket.</li>
+    <li><strong>Odds converter</strong> — American ↔ Decimal ↔ Implied probability.</li>
+    <li><strong>Consensus &amp; vig</strong> — Ranks books by juice.</li>
+    <li><strong>Coin flip</strong> — Settle group chat arguments fairly.</li>
+  </ul>
+</details>
+
+<details id="keyDetails" open>
+  <summary>API key setup <span class="pill pill-info" id="keyStatus" style="margin-left: 8px;">Not connected</span></summary>
+  <p style="margin: 12px 0 8px; font-size: 13px; color: var(--text-muted);">This dashboard pulls live odds from <a href="https://the-odds-api.com" target="_blank" rel="noopener">The Odds API</a>. You need a free API key. Takes 30 seconds.</p>
+  <ol style="margin: 8px 0 14px; padding-left: 22px; font-size: 13px; color: var(--text-muted); line-height: 1.7;">
+    <li>Go to <a href="https://the-odds-api.com" target="_blank" rel="noopener"><strong>the-odds-api.com</strong></a> and click <strong>"Get API Key"</strong>.</li>
+    <li>Enter your email and pick the <strong>free tier</strong> (500 requests/month, no credit card needed).</li>
+    <li>Check your email — they send the API key right away.</li>
+    <li>Copy the key, paste it below, and click <strong>Save key</strong>.</li>
+  </ol>
+  <div style="background: var(--info-bg); color: var(--info-text); padding: 10px 12px; border-radius: var(--radius); font-size: 12px; margin-bottom: 12px;"><strong>How requests work:</strong> One refresh of the odds board uses <strong>1 request</strong>, regardless of how many games come back. So 500/month is plenty.</div>
+  <div style="background: var(--surface-2); padding: 10px 12px; border-radius: var(--radius); font-size: 12px; color: var(--text-muted); margin-bottom: 12px;"><strong>Privacy:</strong> Your key is saved in your browser's localStorage only. Never sent anywhere except directly to the-odds-api.com. Each person needs their own key.</div>
+  <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+    <input type="text" id="keyInput" placeholder="Paste API key here" style="flex: 1; min-width: 200px;">
+    <button class="primary" id="keySave">Save key</button>
+    <button id="keyClear" style="display: none;">Clear</button>
+  </div>
+</details>
+
+<div class="tabs">
+  <button class="tab active" data-tab="bod">Bet of the day</button>
+  <button class="tab" data-tab="odds">Live odds</button>
+  <button class="tab" data-tab="value">Value finder</button>
+  <button class="tab" data-tab="arb">Arbitrage</button>
+  <button class="tab" data-tab="parlay">Parlay builder</button>
+  <button class="tab" data-tab="kelly">Kelly</button>
+  <button class="tab" data-tab="hedge">Hedge</button>
+  <button class="tab" data-tab="converter">Odds converter</button>
+  <button class="tab" data-tab="consensus">Consensus &amp; vig</button>
+  <button class="tab" data-tab="coin">Coin flip</button>
+</div>
+
+<div class="pane active" data-pane="bod">
+  <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 12px;">Auto-picks the highest +EV bet from currently loaded odds. Screenshot the card and send it to the group chat.</p>
+  <button class="primary" id="bodRun" style="margin-bottom: 14px;">Generate today's pick</button>
+  <div id="bodBoard"><div class="empty">Load odds on the Live odds tab first, then come back here.</div></div>
+</div>
+
+<div class="pane" data-pane="odds">
+  <div class="grid-3" style="margin-bottom: 12px;">
+    <div class="stat"><span class="label">Sport</span>
+      <select id="sport">
+        <option value="icehockey_nhl">NHL</option>
+        <option value="americanfootball_nfl">NFL</option>
+        <option value="basketball_nba">NBA</option>
+        <option value="baseball_mlb">MLB</option>
+        <option value="soccer_epl">Soccer — EPL</option>
+        <option value="soccer_uefa_champs_league">Soccer — UCL</option>
+        <option value="americanfootball_ncaaf">NCAAF</option>
+        <option value="basketball_ncaab">NCAAB</option>
+        <option value="mma_mixed_martial_arts">MMA</option>
+      </select>
+    </div>
+    <div class="stat"><span class="label">Market</span>
+      <select id="market">
+        <option value="h2h">Moneyline</option>
+        <option value="spreads">Spread</option>
+        <option value="totals">Total (O/U)</option>
+      </select>
+    </div>
+    <div class="stat"><span class="label">Region</span>
+      <select id="region">
+        <option value="us">US books</option>
+        <option value="us2">US (extra books)</option>
+        <option value="uk">UK books</option>
+        <option value="eu">EU books</option>
+        <option value="au">AU books</option>
+      </select>
+    </div>
+  </div>
+  <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px;">
+    <button class="primary" id="refresh">Refresh odds</button>
+    <label style="font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="autoRefresh" style="width: auto; padding: 0; margin: 0;"> Auto-refresh every 5 min</label>
+  </div>
+  <div id="oddsBoard"><div class="empty">Enter your API key above, then hit refresh.</div></div>
+</div>
+
+<div class="pane" data-pane="value">
+  <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 12px;">Compares each book's price against the de-vigged consensus fair line. Positive EV = the book is paying more than the true probability suggests.</p>
+  <div class="grid-3" style="margin-bottom: 12px;">
+    <div class="stat"><span class="label">Min EV %</span><input type="number" id="minEv" value="1" step="0.5"></div>
+    <div class="stat"><span class="label">Sort by</span>
+      <select id="valSort"><option value="ev">Highest EV</option><option value="abs">Biggest mispricing</option></select>
+    </div>
+    <div class="stat" style="display: flex; align-items: flex-end;"><button class="primary" id="valRun" style="width: 100%;">Find value bets</button></div>
+  </div>
+  <div id="valueBoard"><div class="empty">Load odds first, then run the scan.</div></div>
+</div>
+
+<div class="pane" data-pane="arb">
+  <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 12px;">Two-way arbs: when best price for side A on one book + best price for side B on another adds up to less than 100% implied probability, you can lock in profit by betting both. Rare and small but real.</p>
+  <button class="primary" id="arbRun" style="margin-bottom: 12px;">Scan for arbs</button>
+  <div id="arbBoard"><div class="empty">Load odds first, then scan.</div></div>
+</div>
+
+<div class="pane" data-pane="parlay">
+  <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 12px;">Build a parlay leg by leg. Combined odds, payout, and EV calculated automatically.</p>
+  <div id="parlayLegs"></div>
+  <button id="parlayAdd" style="margin: 8px 0 14px;">+ Add leg</button>
+  <div class="grid-2" style="margin-bottom: 14px;">
+    <div><span class="label">Stake ($)</span><input type="number" id="parlayStake" value="20" step="5"></div>
+    <div><span class="label">Combined American odds</span><input type="text" id="parlayCombined" value="—" readonly style="background: var(--surface-2);"></div>
+  </div>
+  <div class="grid-4" style="margin-bottom: 12px;">
+    <div class="stat"><span class="label">Combined decimal</span><p class="val" id="parlayDec">—</p></div>
+    <div class="stat"><span class="label">Implied prob</span><p class="val" id="parlayImp">—</p></div>
+    <div class="stat"><span class="label">Payout if win</span><p class="val" id="parlayPay">—</p></div>
+    <div class="stat"><span class="label">Net profit</span><p class="val" id="parlayNet">—</p></div>
+  </div>
+  <div class="card verdict" id="parlayVerdict">Add some legs to see the math.</div>
+</div>
+
+<div class="pane" data-pane="kelly">
+  <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 14px;">Tells you how much to bet given your edge. Half Kelly is the standard recommendation — full Kelly maximizes growth but produces wild drawdowns.</p>
+  <div class="grid-2" style="margin-bottom: 12px;">
+    <div><span class="label">Bankroll ($)</span><input type="number" id="kBank" value="1000" step="50"></div>
+    <div><span class="label">Kelly fraction</span>
+      <select id="kFrac"><option value="1">Full Kelly (max growth, max swings)</option><option value="0.5" selected>Half Kelly (recommended)</option><option value="0.25">Quarter Kelly (conservative)</option></select>
+    </div>
+  </div>
+  <div class="grid-2" style="margin-bottom: 14px;">
+    <div><span class="label">American odds (-110, +150, etc.)</span><input type="number" id="kOdds" value="150" step="5"></div>
+    <div><span class="label">Your estimated win % — <strong id="kProbOut">45%</strong></span><input type="range" id="kProb" min="1" max="99" value="45" step="1" style="width: 100%;"></div>
+  </div>
+  <div class="grid-4" style="margin-bottom: 12px;">
+    <div class="stat"><span class="label">Implied book prob</span><p class="val" id="kImplied">—</p></div>
+    <div class="stat"><span class="label">Your edge</span><p class="val" id="kEdge">—</p></div>
+    <div class="stat"><span class="label">Recommended stake</span><p class="val" id="kStake">—</p></div>
+    <div class="stat"><span class="label">Expected profit</span><p class="val" id="kEV">—</p></div>
+  </div>
+  <div class="card verdict" id="kVerdict">Set your numbers above to see the verdict.</div>
+</div>
+
+<div class="pane" data-pane="hedge">
+  <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 14px;">Got a live ticket and want to lock in profit? Enter your original bet and the current odds on the other side. Tells you how much to hedge so you win the same amount either way.</p>
+  <div class="grid-3" style="margin-bottom: 12px;">
+    <div><span class="label">Original stake ($)</span><input type="number" id="hStake" value="100" step="10"></div>
+    <div><span class="label">Original odds (American)</span><input type="number" id="hOdds" value="500" step="10"></div>
+    <div><span class="label">Hedge odds available now</span><input type="number" id="hHedgeOdds" value="-200" step="10"></div>
+  </div>
+  <div class="grid-4" style="margin-bottom: 12px;">
+    <div class="stat"><span class="label">Hedge stake</span><p class="val" id="hHedgeStake">—</p></div>
+    <div class="stat"><span class="label">Locked profit</span><p class="val" id="hLocked">—</p></div>
+    <div class="stat"><span class="label">If you don't hedge (win)</span><p class="val" id="hNoHedge">—</p></div>
+    <div class="stat"><span class="label">If you don't hedge (loss)</span><p class="val" id="hNoHedgeLoss">—</p></div>
+  </div>
+  <div class="card verdict" id="hVerdict">Enter your bet to see the hedge math.</div>
+</div>
+
+<div class="pane" data-pane="converter">
+  <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 14px;">Convert between American odds, decimal odds, and implied probability. Type in any field — the others update.</p>
+  <div class="grid-3" style="margin-bottom: 14px;">
+    <div><span class="label">American odds</span><input type="number" id="cAm" value="-110" step="5"></div>
+    <div><span class="label">Decimal odds</span><input type="number" id="cDec" value="1.91" step="0.01"></div>
+    <div><span class="label">Implied probability (%)</span><input type="number" id="cImp" value="52.4" step="0.1"></div>
+  </div>
+  <div class="card" style="font-size: 13px; color: var(--text-muted); line-height: 1.7;">
+    <strong style="color: var(--text);">Quick reference:</strong><br>
+    <strong>−110</strong> means bet $110 to win $100 (52.4% implied)<br>
+    <strong>+100</strong> = even money, double your money on a win (50% implied)<br>
+    <strong>+200</strong> means bet $100 to win $200 (33.3% implied)<br>
+    <strong>−200</strong> means bet $200 to win $100 (66.7% implied)
+  </div>
+</div>
+
+<div class="pane" data-pane="consensus">
+  <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 12px;">"Vig" or "juice" is the book's built-in margin. Sharp books like Pinnacle run 2–4% vig; soft US books often 5–8%. Lower vig = closer to true odds.</p>
+  <div id="consensusBoard"><div class="empty">Load odds on the Live odds tab first.</div></div>
+</div>
+
+<div class="pane" data-pane="coin">
+  <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 14px;">Settle group chat arguments fairly. 50/50 odds, no juice, no spread.</p>
+  <div class="card" style="text-align: center; padding: 24px;">
+    <div class="coin" id="coin">?</div>
+    <button class="primary" id="coinFlip" style="margin: 8px 0 16px; padding: 10px 24px; font-size: 15px;">Flip the coin</button>
+    <p id="coinResult" style="font-size: 13px; color: var(--text-muted); margin: 8px 0 0;">Click to flip.</p>
+    <div style="margin-top: 16px; padding-top: 16px; border-top: 0.5px solid var(--border); display: flex; justify-content: space-around; align-items: center; font-size: 13px; color: var(--text-muted);">
+      <div>Heads: <strong id="coinHeads" style="color: var(--text);">0</strong></div>
+      <div>Tails: <strong id="coinTails" style="color: var(--text);">0</strong></div>
+      <button id="coinReset" style="font-size: 12px; padding: 4px 10px;">Reset</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  For entertainment purposes only. Bet responsibly.<br>
+  Problem gambling support: ConnexOntario 1-866-531-2600 · <a href="https://www.agco.ca/en/lottery-and-gaming/responsible-gambling" target="_blank" rel="noopener">AGCO Responsible Gambling</a><br>
+  Odds data via <a href="https://the-odds-api.com" target="_blank" rel="noopener">The Odds API</a>.
+</footer>
+
+</div>
+
+<script>
+(function(){
+  const KEY = 'edgeRoomApiKey_v1';
+  const THEME_KEY = 'edgeRoomTheme_v1';
+  let apiKey = '';
+  let lastEvents = [];
+  let lastSportLabel = '';
+  let lastMarket = 'h2h';
+  let autoRefreshTimer = null;
+
+  const americanToImplied = o => o < 0 ? -o / (-o + 100) : 100 / (o + 100);
+  const americanToDecimal = o => o < 0 ? 1 + 100 / -o : 1 + o / 100;
+  const decimalToAmerican = d => d >= 2 ? Math.round((d - 1) * 100) : Math.round(-100 / (d - 1));
+  const fmtAm = o => o > 0 ? '+' + o : '' + o;
+  const sportLabels = { icehockey_nhl: 'NHL', americanfootball_nfl: 'NFL', basketball_nba: 'NBA', baseball_mlb: 'MLB', soccer_epl: 'EPL', soccer_uefa_champs_league: 'UCL', americanfootball_ncaaf: 'NCAAF', basketball_ncaab: 'NCAAB', mma_mixed_martial_arts: 'MMA' };
+
+  // Masthead date
+  const mDate = document.getElementById('masthead-date');
+  if (mDate) mDate.textContent = new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
+
+  // Theme: default is dark. Light is opt-in.
+  function setTheme(theme) {
+    if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    else document.documentElement.removeAttribute('data-theme');
+    try { localStorage.setItem(THEME_KEY, theme || ''); } catch(e) {}
+  }
+  try { const saved = localStorage.getItem(THEME_KEY); if (saved === 'light') setTheme('light'); } catch(e) {}
+  document.getElementById('themeBtn').addEventListener('click', () => {
+    const cur = document.documentElement.getAttribute('data-theme');
+    setTheme(cur === 'light' ? 'dark' : 'light');
+  });
+
+  try { apiKey = localStorage.getItem(KEY) || ''; } catch(e) {}
+  function setKeyUI() {
+    const status = document.getElementById('keyStatus');
+    const clearBtn = document.getElementById('keyClear');
+    const input = document.getElementById('keyInput');
+    const details = document.getElementById('keyDetails');
+    if (apiKey) {
+      status.textContent = 'Connected · ' + apiKey.slice(0, 4) + '…' + apiKey.slice(-3);
+      status.className = 'pill pill-good';
+      clearBtn.style.display = '';
+      input.value = '';
+      input.placeholder = 'Key saved — paste new key to replace';
+      document.getElementById('status').textContent = lastEvents.length ? lastSportLabel + ' · ' + lastEvents.length + ' games loaded' : 'Ready · hit refresh';
+      details.open = false;
+    } else {
+      status.textContent = 'Not connected';
+      status.className = 'pill pill-info';
+      clearBtn.style.display = 'none';
+      document.getElementById('status').textContent = 'Enter API key to start';
+      details.open = true;
+    }
+  }
+  document.getElementById('keySave').addEventListener('click', () => {
+    const v = document.getElementById('keyInput').value.trim();
+    if (!v) return;
+    apiKey = v;
+    try { localStorage.setItem(KEY, v); } catch(e) {}
+    setKeyUI();
+  });
+  document.getElementById('keyClear').addEventListener('click', () => {
+    apiKey = '';
+    try { localStorage.removeItem(KEY); } catch(e) {}
+    setKeyUI();
+  });
+  setKeyUI();
+
+  document.querySelectorAll('.tab[data-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab[data-tab]').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelector('[data-pane="' + btn.dataset.tab + '"]').classList.add('active');
+      if (btn.dataset.tab === 'consensus') renderConsensus();
+    });
+  });
+
+  async function fetchOdds() {
+    if (!apiKey) {
+      document.getElementById('oddsBoard').innerHTML = '<div class="empty">Enter your API key first.</div>';
+      document.getElementById('keyDetails').open = true;
+      return;
+    }
+    const sport = document.getElementById('sport').value;
+    const market = document.getElementById('market').value;
+    const region = document.getElementById('region').value;
+    lastMarket = market;
+    lastSportLabel = sportLabels[sport] || sport;
+    document.getElementById('oddsBoard').innerHTML = '<div class="empty"><span class="spinner"></span>Fetching live odds…</div>';
+    document.getElementById('status').textContent = 'Fetching ' + lastSportLabel + '…';
+    const url = 'https://api.the-odds-api.com/v4/sports/' + sport + '/odds/?apiKey=' + encodeURIComponent(apiKey) + '&regions=' + region + '&markets=' + market + '&oddsFormat=american&dateFormat=iso';
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        let msg = 'Error ' + res.status;
+        if (res.status === 401) msg = 'Invalid API key — double-check it on the-odds-api.com.';
+        else if (res.status === 429) msg = 'Out of monthly requests — free tier is 500/month.';
+        else if (res.status === 422) msg = 'Sport not in season or no markets available right now.';
+        document.getElementById('oddsBoard').innerHTML = '<div class="empty">' + msg + '</div>';
+        document.getElementById('status').textContent = 'Error · ' + res.status;
+        return;
+      }
+      const remaining = res.headers.get('x-requests-remaining');
+      const data = await res.json();
+      lastEvents = data || [];
+      document.getElementById('status').textContent = lastSportLabel + ' · ' + lastEvents.length + ' games · ' + (remaining || '?') + ' calls left';
+      renderOdds();
+    } catch (err) {
+      document.getElementById('oddsBoard').innerHTML = '<div class="empty">Network error: ' + err.message + '</div>';
+    }
+  }
+
+  function renderOdds() {
+    if (!lastEvents.length) { document.getElementById('oddsBoard').innerHTML = '<div class="empty">No upcoming games for this sport &amp; market right now.</div>'; return; }
+    let html = '';
+    lastEvents.slice(0, 15).forEach(ev => {
+      const bookmakers = ev.bookmakers || [];
+      const start = new Date(ev.commence_time);
+      const dateStr = start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' · ' + start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+      const outcomeNames = new Set();
+      bookmakers.forEach(bm => {
+        const m = (bm.markets || []).find(m => m.key === lastMarket);
+        if (m) m.outcomes.forEach(o => outcomeNames.add(o.name + (o.point !== undefined ? ' ' + (o.point > 0 ? '+' : '') + o.point : '')));
+      });
+      const outcomes = Array.from(outcomeNames);
+      const bestByOutcome = {};
+      outcomes.forEach(name => bestByOutcome[name] = -Infinity);
+      const rows = bookmakers.map(bm => {
+        const m = (bm.markets || []).find(m => m.key === lastMarket);
+        const prices = {};
+        if (m) m.outcomes.forEach(o => {
+          const key = o.name + (o.point !== undefined ? ' ' + (o.point > 0 ? '+' : '') + o.point : '');
+          prices[key] = o.price;
+          if (o.price > bestByOutcome[key]) bestByOutcome[key] = o.price;
+        });
+        return { book: bm.title, prices };
+      });
+      html += '<div class="card game-card"><div class="game-head"><div class="game-title">' + ev.away_team + ' @ ' + ev.home_team + '</div><div class="mini">' + dateStr + '</div></div>';
+      html += '<div class="scrollx"><table><thead><tr><th>Book</th>';
+      outcomes.forEach(o => html += '<th style="text-align: center;">' + o + '</th>');
+      html += '</tr></thead><tbody>';
+      rows.forEach(r => {
+        html += '<tr><td style="color: var(--text-muted);">' + r.book + '</td>';
+        outcomes.forEach(o => {
+          const p = r.prices[o];
+          if (p === undefined) html += '<td style="text-align: center; color: var(--text-dim);">—</td>';
+          else {
+            const isBest = p === bestByOutcome[o];
+            html += '<td style="padding: 3px 4px;"><div class="book-cell ' + (isBest ? 'book-best' : 'book-norm') + '">' + fmtAm(p) + '</div></td>';
+          }
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table></div></div>';
+    });
+    document.getElementById('oddsBoard').innerHTML = html;
+  }
+  document.getElementById('refresh').addEventListener('click', fetchOdds);
+  document.getElementById('autoRefresh').addEventListener('change', e => {
+    if (e.target.checked) {
+      autoRefreshTimer = setInterval(fetchOdds, 5 * 60 * 1000);
+    } else {
+      clearInterval(autoRefreshTimer);
+      autoRefreshTimer = null;
+    }
+  });
+
+  // Status helpers: tell the user EXACTLY what's wrong
+  function oddsStatus() {
+    if (!lastEvents || !lastEvents.length) return { ok: false, msg: 'No odds loaded yet. Go to the Live odds tab, hit Refresh, then come back here.' };
+    if (lastMarket !== 'h2h') return { ok: false, msg: 'This tool works on moneyline markets. On the Live odds tab, set Market to "Moneyline" and hit Refresh, then come back here.' };
+    // Count events that actually have at least 2 bookmakers with h2h markets
+    const usable = lastEvents.filter(ev => {
+      const books = (ev.bookmakers || []).filter(bm => (bm.markets || []).some(m => m.key === 'h2h' && m.outcomes && m.outcomes.length >= 2));
+      return books.length >= 2;
+    });
+    if (!usable.length) return { ok: false, msg: 'Odds loaded but no games have moneyline markets from 2+ books right now. Try a different sport or region.' };
+    return { ok: true, usable };
+  }
+
+  function buildOpportunities() {
+    const opps = [];
+    const status = oddsStatus();
+    if (!status.ok) return opps;
+    status.usable.forEach(ev => {
+      // Moneyline only — group by team name (no point values)
+      const byOutcome = {};
+      (ev.bookmakers || []).forEach(bm => {
+        const m = (bm.markets || []).find(m => m.key === 'h2h');
+        if (!m) return;
+        m.outcomes.forEach(o => {
+          const key = o.name;
+          if (!byOutcome[key]) byOutcome[key] = [];
+          byOutcome[key].push({ book: bm.title, american: o.price, decimal: americanToDecimal(o.price) });
+        });
+      });
+      const outcomeNames = Object.keys(byOutcome);
+      if (outcomeNames.length < 2) return;
+      // De-vig: average implied prob per outcome across books, then normalize to sum to 1
+      const avgImplied = {};
+      outcomeNames.forEach(n => {
+        const imps = byOutcome[n].map(x => americanToImplied(x.american));
+        avgImplied[n] = imps.reduce((a,b)=>a+b,0) / imps.length;
+      });
+      const sumImp = outcomeNames.reduce((a,n) => a + avgImplied[n], 0);
+      if (sumImp <= 0) return;
+      const fairProb = {};
+      outcomeNames.forEach(n => fairProb[n] = avgImplied[n] / sumImp);
+      outcomeNames.forEach(name => {
+        byOutcome[name].forEach(offer => {
+          const ev_pct = (fairProb[name] * offer.decimal - 1) * 100;
+          opps.push({
+            matchup: ev.away_team + ' @ ' + ev.home_team,
+            outcome: name, book: offer.book, american: offer.american,
+            fairAmerican: decimalToAmerican(1 / fairProb[name]),
+            fairProb: fairProb[name], ev: ev_pct
+          });
+        });
+      });
+    });
+    return opps;
+  }
+
+  function renderValue() {
+    const status = oddsStatus();
+    if (!status.ok) { document.getElementById('valueBoard').innerHTML = '<div class="empty">' + status.msg + '</div>'; return; }
+    const minEv = parseFloat(document.getElementById('minEv').value) || 0;
+    const sort = document.getElementById('valSort').value;
+    let opps = buildOpportunities().filter(o => o.ev >= minEv);
+    opps.sort((a,b) => sort === 'abs' ? Math.abs(b.ev) - Math.abs(a.ev) : b.ev - a.ev);
+    if (!opps.length) { document.getElementById('valueBoard').innerHTML = '<div class="empty">No bets above ' + minEv + '% EV right now. Try lowering the threshold or a different sport.</div>'; return; }
+    let html = '';
+    opps.slice(0, 20).forEach(o => {
+      const pillClass = o.ev > 3 ? 'pill-good' : 'pill-info';
+      html += '<div class="card" style="margin-bottom: 8px; padding: 10px 14px;"><div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;"><div style="min-width: 0;"><div style="font-size: 13px; font-weight: 600;">' + o.outcome + '</div><div class="mini" style="margin-top: 2px;">' + o.matchup + ' · ' + o.book + ' @ ' + fmtAm(o.american) + ' <span style="opacity: 0.7;">(fair ≈ ' + fmtAm(o.fairAmerican) + ')</span></div></div><span class="pill ' + pillClass + '">+' + o.ev.toFixed(2) + '% EV</span></div></div>';
+    });
+    document.getElementById('valueBoard').innerHTML = html;
+  }
+  document.getElementById('valRun').addEventListener('click', renderValue);
+
+  function renderArbs() {
+    const status = oddsStatus();
+    if (!status.ok) { document.getElementById('arbBoard').innerHTML = '<div class="empty">' + status.msg + '</div>'; return; }
+    const arbs = [];
+    status.usable.forEach(ev => {
+      const bestByOutcome = {};
+      const outcomeNames = new Set();
+      (ev.bookmakers || []).forEach(bm => {
+        const m = (bm.markets || []).find(m => m.key === 'h2h');
+        if (!m) return;
+        m.outcomes.forEach(o => {
+          const key = o.name;
+          outcomeNames.add(key);
+          const dec = americanToDecimal(o.price);
+          if (!bestByOutcome[key] || dec > bestByOutcome[key].decimal) {
+            bestByOutcome[key] = { book: bm.title, american: o.price, decimal: dec };
+          }
+        });
+      });
+      const names = Array.from(outcomeNames);
+      if (names.length !== 2) return;
+      const a = bestByOutcome[names[0]], b = bestByOutcome[names[1]];
+      if (!a || !b) return;
+      const totalImplied = (1/a.decimal) + (1/b.decimal);
+      if (totalImplied < 1) {
+        const profitPct = (1/totalImplied - 1) * 100;
+        const stakeA = (1/a.decimal) / totalImplied;
+        const stakeB = (1/b.decimal) / totalImplied;
+        arbs.push({ matchup: ev.away_team + ' @ ' + ev.home_team, a: { name: names[0], ...a, stake: stakeA }, b: { name: names[1], ...b, stake: stakeB }, profitPct });
+      }
+    });
+    arbs.sort((x,y) => y.profitPct - x.profitPct);
+    if (!arbs.length) { document.getElementById('arbBoard').innerHTML = '<div class="empty">No two-way arbs in this market right now. They\'re rare — only show up briefly when books disagree.</div>'; return; }
+    let html = '';
+    arbs.forEach(a => {
+      html += '<div class="card" style="margin-bottom: 10px;"><div class="game-head"><div class="game-title">' + a.matchup + '</div><span class="pill pill-good">+' + a.profitPct.toFixed(2) + '% locked</span></div>';
+      html += '<div class="grid-2">';
+      [a.a, a.b].forEach(side => {
+        html += '<div class="stat"><div style="font-size: 13px; font-weight: 600;">' + side.name + '</div><div class="mini" style="margin: 4px 0;">' + side.book + ' @ ' + fmtAm(side.american) + '</div><div style="font-size: 12px; color: var(--text-muted);">Stake ' + (side.stake * 100).toFixed(1) + '% of bankroll</div></div>';
+      });
+      html += '</div></div>';
+    });
+    document.getElementById('arbBoard').innerHTML = html;
+  }
+  document.getElementById('arbRun').addEventListener('click', renderArbs);
+
+  document.getElementById('bodRun').addEventListener('click', () => {
+    const status = oddsStatus();
+    if (!status.ok) { document.getElementById('bodBoard').innerHTML = '<div class="empty">' + status.msg + '</div>'; return; }
+    const opps = buildOpportunities();
+    if (!opps.length) { document.getElementById('bodBoard').innerHTML = '<div class="empty">No opportunities found in current data. Try refreshing or a different sport.</div>'; return; }
+    opps.sort((a,b) => b.ev - a.ev);
+    const top = opps[0];
+    if (top.ev < 0.5) { document.getElementById('bodBoard').innerHTML = '<div class="empty">No clear edge in current odds. Try refreshing or a different sport. Best EV found: ' + top.ev.toFixed(2) + '%</div>'; return; }
+    const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+    const serial = '№ ' + Math.floor(Math.random() * 90000 + 10000);
+    const html = '<div class="bod-card"><div class="bod-inner">' +
+      '<div class="bod-serial">' + serial + '</div>' +
+      '<div class="bod-stamp">' + today + '</div>' +
+      '<div class="bod-rule"><span class="bod-rule-emblem">◆</span></div>' +
+      '<div class="bod-header">The Edge Room — Selection of the Day</div>' +
+      '<div class="bod-rule"><span class="bod-rule-emblem">◆</span></div>' +
+      '<div class="bod-pick">' + top.outcome + '</div>' +
+      '<div class="bod-matchup">' + top.matchup + '</div>' +
+      '<div class="bod-line">Best price: <strong>' + top.book + ' @ ' + fmtAm(top.american) + '</strong></div>' +
+      '<div class="bod-stats">' +
+        '<div class="bod-stat-block"><div class="bod-stat-num good">+' + top.ev.toFixed(2) + '%</div><div class="bod-stat-lab">Edge</div></div>' +
+        '<div class="bod-stat-block"><div class="bod-stat-num">' + (top.fairProb * 100).toFixed(1) + '%</div><div class="bod-stat-lab">Fair Prob.</div></div>' +
+        '<div class="bod-stat-block"><div class="bod-stat-num">' + fmtAm(top.fairAmerican) + '</div><div class="bod-stat-lab">Fair Line</div></div>' +
+      '</div>' +
+      '<div class="bod-watermark">The Edge Room</div>' +
+      '</div></div>' +
+      '<p class="mini" style="margin-top: 14px; text-align: center;">Screenshot &amp; send to the chat · Picked by comparing book price vs. consensus fair line</p>';
+    document.getElementById('bodBoard').innerHTML = html;
+  });
+
+  let parlayLegs = [{ name: 'Leg 1', odds: -110 }, { name: 'Leg 2', odds: -110 }];
+
+  function renderParlay() {
+    const container = document.getElementById('parlayLegs');
+    container.innerHTML = '';
+    parlayLegs.forEach((leg, i) => {
+      const row = document.createElement('div');
+      row.className = 'parlay-leg';
+      row.innerHTML = '<input type="text" placeholder="Bet description (e.g. Oilers ML)" value="' + leg.name + '" data-i="' + i + '" data-f="name">' +
+        '<input type="number" placeholder="Odds" value="' + leg.odds + '" step="5" style="width: 90px;" data-i="' + i + '" data-f="odds">' +
+        '<button class="leg-rm" data-i="' + i + '">Remove</button>';
+      container.appendChild(row);
+    });
+    container.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('input', e => {
+        const i = +e.target.dataset.i;
+        const f = e.target.dataset.f;
+        parlayLegs[i][f] = f === 'odds' ? parseFloat(e.target.value) || 0 : e.target.value;
+        calcParlay();
+      });
+    });
+    container.querySelectorAll('.leg-rm').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const i = +e.target.dataset.i;
+        parlayLegs.splice(i, 1);
+        renderParlay();
+        calcParlay();
+      });
+    });
+    calcParlay();
+  }
+
+  function calcParlay() {
+    const stake = parseFloat(document.getElementById('parlayStake').value) || 0;
+    if (!parlayLegs.length) {
+      document.getElementById('parlayCombined').value = '—';
+      document.getElementById('parlayDec').textContent = '—';
+      document.getElementById('parlayImp').textContent = '—';
+      document.getElementById('parlayPay').textContent = '—';
+      document.getElementById('parlayNet').textContent = '—';
+      document.getElementById('parlayVerdict').innerHTML = 'Add legs to see the math.';
+      return;
+    }
+    let combinedDec = 1;
+    parlayLegs.forEach(l => combinedDec *= americanToDecimal(l.odds));
+    const combinedAm = decimalToAmerican(combinedDec);
+    const impliedProb = (1 / combinedDec) * 100;
+    const payout = stake * combinedDec;
+    const netProfit = payout - stake;
+    document.getElementById('parlayCombined').value = fmtAm(combinedAm);
+    document.getElementById('parlayDec').textContent = combinedDec.toFixed(2);
+    document.getElementById('parlayImp').textContent = impliedProb.toFixed(1) + '%';
+    document.getElementById('parlayPay').textContent = '$' + payout.toFixed(2);
+    document.getElementById('parlayNet').textContent = '+$' + netProfit.toFixed(2);
+    let v;
+    if (parlayLegs.length === 1) v = '<strong>Single bet, not a parlay.</strong> Add another leg to combine odds.';
+    else if (impliedProb > 40) v = '<strong style="color: var(--good-text);">Reasonable parlay.</strong> All legs are likely outcomes — modest payout but realistic.';
+    else if (impliedProb > 15) v = '<strong style="color: var(--warn-text);">Standard parlay.</strong> Decent payout, decent risk. Each added leg roughly halves your win probability.';
+    else if (impliedProb > 3) v = '<strong style="color: var(--bad-text);">Long shot.</strong> Fun ticket, but the house edge compounds with each leg.';
+    else v = '<strong style="color: var(--bad-text);">Lottery ticket.</strong> Less than ' + impliedProb.toFixed(1) + '% chance. Books love these.';
+    document.getElementById('parlayVerdict').innerHTML = v;
+  }
+
+  document.getElementById('parlayAdd').addEventListener('click', () => {
+    parlayLegs.push({ name: 'Leg ' + (parlayLegs.length + 1), odds: -110 });
+    renderParlay();
+  });
+  document.getElementById('parlayStake').addEventListener('input', calcParlay);
+  renderParlay();
+
+  function calcKelly() {
+    const bank = parseFloat(document.getElementById('kBank').value) || 0;
+    const odds = parseFloat(document.getElementById('kOdds').value) || 0;
+    const prob = parseFloat(document.getElementById('kProb').value) / 100;
+    const frac = parseFloat(document.getElementById('kFrac').value);
+    document.getElementById('kProbOut').textContent = Math.round(prob * 100) + '%';
+    if (!odds) return;
+    const dec = americanToDecimal(odds);
+    const b = dec - 1;
+    const q = 1 - prob;
+    const kelly = (b * prob - q) / b;
+    const stake = Math.max(0, kelly * frac * bank);
+    const implied = americanToImplied(odds) * 100;
+    const edge = (prob * 100) - implied;
+    const evDollars = stake * (prob * b - q);
+    document.getElementById('kImplied').textContent = implied.toFixed(1) + '%';
+    document.getElementById('kEdge').textContent = (edge >= 0 ? '+' : '') + edge.toFixed(1) + '%';
+    document.getElementById('kStake').textContent = '$' + stake.toFixed(0);
+    document.getElementById('kEV').textContent = (evDollars >= 0 ? '+$' : '-$') + Math.abs(evDollars).toFixed(2);
+    let v;
+    if (kelly <= 0) v = '<strong style="color: var(--bad-text);">No bet.</strong> Your win % is below what the book is paying. Skip it.';
+    else if (kelly < 0.02) v = '<strong style="color: var(--warn-text);">Marginal edge.</strong> Tiny stake — variance and juice can eat this. Maybe pass.';
+    else if (kelly < 0.05) v = '<strong style="color: var(--good-text);">Solid edge.</strong> Reasonable bet at the recommended stake.';
+    else if (kelly < 0.10) v = '<strong style="color: var(--good-text);">Strong edge.</strong> If your win % estimate is honest, this is a good play.';
+    else v = '<strong style="color: var(--warn-text);">Huge edge — sanity check.</strong> Edges this big almost never exist. Re-examine your win % estimate.';
+    document.getElementById('kVerdict').innerHTML = v;
+  }
+  ['kBank','kOdds','kProb','kFrac'].forEach(id => document.getElementById(id).addEventListener('input', calcKelly));
+  calcKelly();
+
+  function calcHedge() {
+    const stake = parseFloat(document.getElementById('hStake').value) || 0;
+    const odds = parseFloat(document.getElementById('hOdds').value) || 0;
+    const hedgeOdds = parseFloat(document.getElementById('hHedgeOdds').value) || 0;
+    if (!stake || !odds || !hedgeOdds) return;
+    const originalDec = americanToDecimal(odds);
+    const hedgeDec = americanToDecimal(hedgeOdds);
+    const winPayout = stake * originalDec;
+    const hedgeStake = winPayout / hedgeDec;
+    const totalOutlay = stake + hedgeStake;
+    const lockedProfit = winPayout - totalOutlay;
+    const noHedgeWin = winPayout - stake;
+    const noHedgeLoss = -stake;
+    document.getElementById('hHedgeStake').textContent = '$' + hedgeStake.toFixed(2);
+    document.getElementById('hLocked').textContent = (lockedProfit >= 0 ? '+$' : '-$') + Math.abs(lockedProfit).toFixed(2);
+    document.getElementById('hNoHedge').textContent = '+$' + noHedgeWin.toFixed(2);
+    document.getElementById('hNoHedgeLoss').textContent = '-$' + Math.abs(noHedgeLoss).toFixed(2);
+    let v;
+    if (lockedProfit > 0) {
+      const pct = (lockedProfit / totalOutlay) * 100;
+      v = '<strong style="color: var(--good-text);">Hedge for guaranteed profit of $' + lockedProfit.toFixed(2) + '</strong> (' + pct.toFixed(1) + '% return on total outlay). You give up upside to lock the win.';
+    } else if (lockedProfit < 0) {
+      v = '<strong style="color: var(--bad-text);">Hedge would create a guaranteed loss of $' + Math.abs(lockedProfit).toFixed(2) + '.</strong> Don\'t hedge — your original bet is bad enough that locking it in costs money.';
+    } else {
+      v = '<strong>Break-even hedge.</strong> Locks $0 either way.';
+    }
+    document.getElementById('hVerdict').innerHTML = v;
+  }
+  ['hStake','hOdds','hHedgeOdds'].forEach(id => document.getElementById(id).addEventListener('input', calcHedge));
+  calcHedge();
+
+  let convLock = false;
+  function fromAm() {
+    if (convLock) return; convLock = true;
+    const am = parseFloat(document.getElementById('cAm').value);
+    if (!isNaN(am) && am !== 0) {
+      const dec = americanToDecimal(am);
+      const imp = americanToImplied(am) * 100;
+      document.getElementById('cDec').value = dec.toFixed(4);
+      document.getElementById('cImp').value = imp.toFixed(2);
+    }
+    convLock = false;
+  }
+  function fromDec() {
+    if (convLock) return; convLock = true;
+    const dec = parseFloat(document.getElementById('cDec').value);
+    if (!isNaN(dec) && dec > 1) {
+      const am = decimalToAmerican(dec);
+      const imp = (1/dec) * 100;
+      document.getElementById('cAm').value = am;
+      document.getElementById('cImp').value = imp.toFixed(2);
+    }
+    convLock = false;
+  }
+  function fromImp() {
+    if (convLock) return; convLock = true;
+    const imp = parseFloat(document.getElementById('cImp').value);
+    if (!isNaN(imp) && imp > 0 && imp < 100) {
+      const dec = 100 / imp;
+      const am = decimalToAmerican(dec);
+      document.getElementById('cAm').value = am;
+      document.getElementById('cDec').value = dec.toFixed(4);
+    }
+    convLock = false;
+  }
+  document.getElementById('cAm').addEventListener('input', fromAm);
+  document.getElementById('cDec').addEventListener('input', fromDec);
+  document.getElementById('cImp').addEventListener('input', fromImp);
+
+  function renderConsensus() {
+    if (!lastEvents.length) { document.getElementById('consensusBoard').innerHTML = '<div class="empty">No odds loaded yet. Go to the Live odds tab, hit Refresh, then come back here.</div>'; return; }
+    let html = '';
+    let shown = 0;
+    lastEvents.slice(0, 10).forEach(ev => {
+      const bookVigs = [];
+      (ev.bookmakers || []).forEach(bm => {
+        const m = (bm.markets || []).find(m => m.key === lastMarket);
+        if (!m || !m.outcomes.length) return;
+        // Only compute vig for 2-outcome markets (moneyline) — spreads/totals vary by point
+        if (lastMarket !== 'h2h') return;
+        const totalImp = m.outcomes.reduce((a,o) => a + americanToImplied(o.price), 0);
+        bookVigs.push({ book: bm.title, vig: (totalImp - 1) * 100 });
+      });
+      bookVigs.sort((a,b) => a.vig - b.vig);
+      if (!bookVigs.length) return;
+      shown++;
+      html += '<div class="card game-card"><div class="game-title" style="margin-bottom: 8px;">' + ev.away_team + ' @ ' + ev.home_team + '</div>';
+      html += '<div class="grid-3">';
+      bookVigs.slice(0, 6).forEach((b, i) => {
+        const cls = i === 0 ? 'pill-good' : (b.vig > 6 ? 'pill-bad' : 'pill-neutral');
+        html += '<div class="stat"><div class="mini">' + b.book + '</div><div style="font-size: 16px; font-weight: 600; margin-top: 2px;">' + b.vig.toFixed(2) + '% vig</div><span class="pill ' + cls + '" style="margin-top: 4px;">' + (i === 0 ? 'Sharpest' : (b.vig > 6 ? 'High juice' : 'Standard')) + '</span></div>';
+      });
+      html += '</div></div>';
+    });
+    if (!shown) {
+      const reason = lastMarket !== 'h2h'
+        ? 'Vig comparison works on moneyline markets. Switch Market to "Moneyline" on the Live odds tab and refresh.'
+        : 'No moneyline markets in current data.';
+      document.getElementById('consensusBoard').innerHTML = '<div class="empty">' + reason + '</div>';
+      return;
+    }
+    document.getElementById('consensusBoard').innerHTML = html;
+  }
+
+  let coinHeads = 0, coinTails = 0;
+  document.getElementById('coinFlip').addEventListener('click', () => {
+    const coin = document.getElementById('coin');
+    const result = document.getElementById('coinResult');
+    const outcome = Math.random() < 0.5 ? 'HEADS' : 'TAILS';
+    coin.classList.remove('flipping');
+    void coin.offsetWidth;
+    coin.classList.add('flipping');
+    coin.textContent = '?';
+    result.textContent = 'Flipping…';
+    setTimeout(() => {
+      coin.textContent = outcome;
+      result.textContent = outcome + '!';
+      if (outcome === 'HEADS') coinHeads++; else coinTails++;
+      document.getElementById('coinHeads').textContent = coinHeads;
+      document.getElementById('coinTails').textContent = coinTails;
+    }, 600);
+  });
+  document.getElementById('coinReset').addEventListener('click', () => {
+    coinHeads = 0; coinTails = 0;
+    document.getElementById('coinHeads').textContent = '0';
+    document.getElementById('coinTails').textContent = '0';
+    document.getElementById('coin').textContent = '?';
+    document.getElementById('coinResult').textContent = 'Click to flip.';
+  });
+})();
+</script>
+</body>
+</html>
