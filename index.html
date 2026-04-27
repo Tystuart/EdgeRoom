@@ -912,6 +912,7 @@
   <button class="tab" data-tab="odds">Live odds</button>
   <button class="tab" data-tab="value">Value finder</button>
   <button class="tab" data-tab="arb">Arbitrage</button>
+  <button class="tab" data-tab="props">Player props</button>
   <button class="tab" data-tab="parlay">Parlay builder</button>
   <button class="tab" data-tab="kelly">Kelly</button>
   <button class="tab" data-tab="hedge">Hedge</button>
@@ -1012,6 +1013,33 @@
   <div id="arbBoard"><div class="empty">Load odds first, then scan.</div></div>
 </div>
 
+<div class="pane" data-pane="props">
+  <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 12px;">Player Over/Under props for NBA, NHL, and NFL. Pick the events and markets you want, see the API budget cost, then fetch. Same de-vig math as Value Finder, grouped by (player, market, line).</p>
+  <div class="grid-2" style="margin-bottom: 12px;">
+    <div class="stat"><span class="label">Sport</span>
+      <select id="propsSport">
+        <option value="basketball_nba">NBA</option>
+        <option value="icehockey_nhl">NHL</option>
+        <option value="americanfootball_nfl">NFL</option>
+      </select>
+    </div>
+    <div class="stat" style="display: flex; align-items: flex-end;">
+      <button class="primary" id="propsLoadEvents" style="width: 100%;">Load events</button>
+    </div>
+  </div>
+  <div id="propsBudgetBar" class="mini" style="margin-bottom: 10px; padding: 6px 10px; background: var(--surface-2); border-radius: var(--radius);"></div>
+  <div id="propsEventsBox"><div class="empty">Click "Load events" to fetch upcoming games. Costs 1 API call.</div></div>
+  <div id="propsMarketsBox" style="display: none;">
+    <div class="card" style="margin-bottom: 12px;">
+      <div class="game-head"><div class="game-title">Markets to fetch</div><div class="mini">Multi-select</div></div>
+      <div id="propsMarketsList"></div>
+    </div>
+    <div id="propsCostEstimate" class="card" style="margin-bottom: 12px; padding: 10px 14px;"></div>
+    <button class="primary" id="propsFetchBtn">Fetch props</button>
+  </div>
+  <div id="propsBoard" style="margin-top: 16px;"></div>
+</div>
+
 <div class="pane" data-pane="parlay">
   <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 12px;">Build a parlay leg by leg. Combined odds, payout, and EV calculated automatically.</p>
   <div id="parlayLegs"></div>
@@ -1034,8 +1062,9 @@
 
 <div class="pane" data-pane="kelly">
   <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 14px;">Tells you how much to bet given your edge. Half Kelly is the standard recommendation — full Kelly maximizes growth but produces wild drawdowns.</p>
-  <div class="grid-2" style="margin-bottom: 12px;">
+  <div class="grid-3" style="margin-bottom: 12px;">
     <div><span class="label">Bankroll ($)</span><input type="number" id="kBank" value="1000" step="50"></div>
+    <div><span class="label">Max stake cap (% of bankroll)</span><input type="number" id="kCap" value="3" min="0.5" max="100" step="0.5"></div>
     <div><span class="label">Kelly fraction</span>
       <select id="kFrac"><option value="1">Full Kelly (max growth, max swings)</option><option value="0.5" selected>Half Kelly (recommended)</option><option value="0.25">Quarter Kelly (conservative)</option></select>
     </div>
@@ -1236,9 +1265,27 @@
     setTheme(cur === 'light' ? 'dark' : 'light');
   });
 
-  // Restore last-used sport/market/region selections.
+  // Read/write the prefs blob (sport/market/region selectors + Kelly cap).
+  function loadPrefs() {
+    try { return JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') || {}; }
+    catch(e) { return {}; }
+  }
+  function savePrefs() {
+    try {
+      const cur = loadPrefs();
+      const next = Object.assign({}, cur, {
+        sport: document.getElementById('sport').value,
+        market: document.getElementById('market').value,
+        region: document.getElementById('region').value,
+        kCap: document.getElementById('kCap').value
+      });
+      localStorage.setItem(PREFS_KEY, JSON.stringify(next));
+    } catch(e) {}
+  }
+
+  // Restore last-used selections + Kelly cap.
   try {
-    const prefs = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
+    const prefs = loadPrefs();
     ['sport', 'market', 'region'].forEach(id => {
       const el = document.getElementById(id);
       if (el && prefs[id]) {
@@ -1246,19 +1293,15 @@
         if (has) el.value = prefs[id];
       }
     });
+    if (prefs.kCap !== undefined && prefs.kCap !== '') {
+      const capEl = document.getElementById('kCap');
+      if (capEl) capEl.value = prefs.kCap;
+    }
   } catch(e) {}
-  ['sport', 'market', 'region'].forEach(id => {
+  ['sport', 'market', 'region', 'kCap'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
-    el.addEventListener('change', () => {
-      try {
-        localStorage.setItem(PREFS_KEY, JSON.stringify({
-          sport: document.getElementById('sport').value,
-          market: document.getElementById('market').value,
-          region: document.getElementById('region').value
-        }));
-      } catch(e) {}
-    });
+    el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', savePrefs);
   });
 
   try { apiKey = localStorage.getItem(KEY) || ''; } catch(e) {}
@@ -1322,6 +1365,15 @@
         '<p><strong>Markets supported:</strong> moneyline, spreads, and totals. Each opportunity shows the line attached (e.g. "Team A -3.5", "Over 47.5") so you can place the bet without ambiguity.</p>' +
         '<em>Don\'t blindly trust huge EV numbers — they\'re often a sign one book hasn\'t updated yet, not free money.</em>'
     },
+    props: {
+      title: 'About Player props',
+      body: '<p><strong>What it does:</strong> Pulls Over/Under prop odds for individual players (points, rebounds, pass yards, etc.) — the markets sportsbooks update slowest. Game lines are mostly efficient; props often aren\'t, which is where most of the soft-book edge lives.</p>' +
+        '<p><strong>The math:</strong> Same as Value Finder. Each book\'s Over+Under is de-vigged on its own (probabilities normalized to 100%), then for each <em style="background:none;padding:0;border:none;font-style:italic;display:inline">(player, market, line)</em> tuple the fair prob is the median across all OTHER books quoting the exact same line. Different points are treated as separate markets — never merged.</p>' +
+        '<p><strong>API budget:</strong> Props live on a separate endpoint that costs <em style="background:none;padding:0;border:none;font-style:italic;display:inline">one credit per market per event</em>. So 5 markets × 8 events = 40 calls. Free tier is only 500/month — pick selectively. The cost estimate before you fetch shows exactly what it\'ll burn, and a stronger warning fires if it would use more than half your remaining budget.</p>' +
+        '<p><strong>Caching:</strong> Each (event, market) combo is cached for 10 minutes in memory — re-clicking Fetch within that window won\'t re-spend credits. Refresh the page to clear.</p>' +
+        '<p><strong>Cross-tab:</strong> Each +EV row has Log (pushes into the Ledger tagged as a prop) and Parlay (sends as a leg to the Parlay builder, with the matchup pre-filled as the game label so SGP correlation gets flagged automatically).</p>' +
+        '<em>NBA, NHL, and NFL only — these are the leagues with the deepest soft-book prop coverage. Out of season → empty events list.</em>'
+    },
     arb: {
       title: 'About Arbitrage',
       body: '<p><strong>What it does:</strong> Finds two-way arbs — when the best price for side A on one book combined with the best price for side B on another book adds up to less than 100% implied probability. You can bet both sides and lock in profit no matter what happens.</p>' +
@@ -1343,8 +1395,9 @@
       body: '<p><strong>What it does:</strong> Tells you the mathematically optimal stake size given your edge. The Kelly formula maximizes long-run bankroll growth.</p>' +
         '<p><strong>The formula:</strong> <code style="font-family:var(--font-mono);font-size:12px;">stake = (b·p − q) / b × bankroll</code> where b = decimal odds − 1, p = your win %, q = 1 − p.</p>' +
         '<p><strong>Why fractional Kelly:</strong> Full Kelly is correct in theory but produces brutal drawdowns in practice (your win % estimates are never exact). Half Kelly captures most of the growth with much less swing. Quarter Kelly is for the cautious.</p>' +
+        '<p><strong>Hard cap:</strong> Even when Kelly says 8%, in practice you should never put that much on one bet — your win % estimate is never that good. The cap saves you from yourself. Pros sit at 2–5% per bet regardless of what the math says; default here is 3%. When the cap is binding, the verdict line tells you what the raw math wanted.</p>' +
         '<p><strong>The honest part:</strong> Garbage in, garbage out. If your win % estimate is wrong, Kelly happily over-bets you into oblivion. Be conservative with your probability estimate.</p>' +
-        '<em>If you genuinely think a +150 bet wins 45% of the time (book implied: 40%), Half Kelly says bet about 5% of bankroll.</em>'
+        '<em>If you genuinely think a +150 bet wins 45% of the time (book implied: 40%), Half Kelly says bet about 5% of bankroll — but a 3% cap trims that to a safer 3%.</em>'
     },
     hedge: {
       title: 'About the Hedge calculator',
@@ -1776,9 +1829,18 @@
     pool.sort((a,b) => b._kelly - a._kelly);
     const top = pool[0];
     if (top.ev < 0.5 || top._kelly <= 0) { document.getElementById('bodBoard').innerHTML = '<div class="empty">No clear edge in current odds. Try refreshing or a different sport. Best EV found: ' + top.ev.toFixed(2) + '% (½ Kelly: ' + top._kelly.toFixed(2) + '%)</div>'; return; }
+    // Apply the same hard cap the Kelly tab uses, so the headline ½ Kelly never exceeds the user's per-bet ceiling.
+    const capPct = getKellyCap() * 100;
+    const rawHalfKelly = top._kelly;
+    const cappedHalfKelly = Math.min(rawHalfKelly, capPct);
+    const wasCapped = rawHalfKelly > capPct;
+    top._kellyCapped = cappedHalfKelly;
+    top._kellyCapApplied = wasCapped;
+    top._capPct = capPct;
     const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
     const serial = '№ ' + Math.floor(Math.random() * 90000 + 10000);
     const fetchedStr = lastFetchedAt ? new Date(lastFetchedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '';
+    const capSubtitle = wasCapped ? '<div style="font-family: var(--font-mono); font-size: 9px; color: var(--warn-text); margin-top: 4px; letter-spacing: 0.1em;">(capped at ' + capPct.toFixed(2) + '%)</div>' : '';
     const html = '<div class="bod-card"><div class="bod-inner">' +
       '<div class="bod-serial">' + serial + '</div>' +
       '<div class="bod-stamp">' + today + '</div>' +
@@ -1791,18 +1853,60 @@
       '<div class="bod-stats">' +
         '<div class="bod-stat-block"><div class="bod-stat-num good">+' + top.ev.toFixed(2) + '%</div><div class="bod-stat-lab">Edge</div></div>' +
         '<div class="bod-stat-block"><div class="bod-stat-num">' + (top.fairProb * 100).toFixed(1) + '%</div><div class="bod-stat-lab">Fair Prob.</div></div>' +
-        '<div class="bod-stat-block"><div class="bod-stat-num">' + top._kelly.toFixed(2) + '%</div><div class="bod-stat-lab">½ Kelly</div></div>' +
+        '<div class="bod-stat-block"><div class="bod-stat-num">' + cappedHalfKelly.toFixed(2) + '%</div><div class="bod-stat-lab">½ Kelly</div>' + capSubtitle + '</div>' +
       '</div>' +
       '<div class="bod-watermark">The Edge Room</div>' +
       (fetchedStr ? '<div class="mini" style="margin-top: 8px; opacity: 0.7;">Odds snapshot · ' + fetchedStr + '</div>' : '') +
       '</div></div>' +
       '<p class="mini" style="margin-top: 14px; text-align: center;">Screenshot &amp; send to the chat · Ranked by ½ Kelly stake (penalizes longshots)</p>' +
-      '<div style="text-align: center; margin-top: 6px;"><button class="log-btn log-btn-bod" id="bodLog">Log this bet</button></div>';
+      '<div style="text-align: center; margin-top: 6px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">' +
+        '<button class="log-btn log-btn-bod" id="bodLog">Log this bet</button>' +
+        '<button class="log-btn log-btn-bod" id="bodCortana">Copy Cortana briefing</button>' +
+      '</div>';
     document.getElementById('bodBoard').innerHTML = html;
     lastBodTop = top;
     const bodLogBtn = document.getElementById('bodLog');
     if (bodLogBtn) bodLogBtn.addEventListener('click', logBodPick);
+    const bodCortanaBtn = document.getElementById('bodCortana');
+    if (bodCortanaBtn) bodCortanaBtn.addEventListener('click', copyCortanaBriefing);
   });
+
+  // Builds a plain-text Telegram-friendly briefing from the latest BOD pick
+  // and copies it to the clipboard. Pulls bankroll from the Kelly tab so the
+  // dollar figure matches whatever the user has set there.
+  function copyCortanaBriefing() {
+    if (!lastBodTop) { toast('Generate a pick first'); return; }
+    const t = lastBodTop;
+    const bankroll = parseFloat(document.getElementById('kBank').value) || 0;
+    const halfK = (t._kellyCapped !== undefined ? t._kellyCapped : t._kelly) || 0;
+    const dollar = bankroll > 0 ? Math.round(bankroll * halfK / 100) : 0;
+    const dateStr = new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    const snap = lastFetchedAt ? new Date(lastFetchedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '—';
+    const lines = [
+      '────────────',
+      'Edge Room briefing — ' + dateStr,
+      'Top pick: ' + t.marketLabel,
+      'Match: ' + t.matchup,
+      'Best price: ' + t.book + ' @ ' + fmtAm(t.american),
+      'Fair prob: ' + (t.fairProb * 100).toFixed(1) + '% · Edge: +' + t.ev.toFixed(1) + '% · ½ Kelly: ' + halfK.toFixed(1) + '%' + (t._kellyCapApplied ? ' (capped)' : ''),
+      'Bankroll @ $' + bankroll.toFixed(0) + ' → suggested $' + dollar,
+      'Snapshot: ' + snap,
+      '────────────'
+    ];
+    const text = lines.join('\n');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => toast('Copied'), () => toast('Copy failed'));
+    } else {
+      // Fallback for older browsers / non-secure contexts.
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); toast('Copied'); }
+      catch(e) { toast('Copy failed'); }
+      ta.remove();
+    }
+  }
 
   let parlayLegs = [
     { name: 'Leg 1', odds: -110, gameLabel: '', sameGame: false },
@@ -1908,18 +2012,29 @@
   document.getElementById('parlayStake').addEventListener('input', calcParlay);
   renderParlay();
 
+  // Read the cap input as a fraction of bankroll. Default 3% if blank/invalid.
+  function getKellyCap() {
+    const raw = parseFloat(document.getElementById('kCap').value);
+    if (isNaN(raw) || raw <= 0) return 0.03;
+    return raw / 100;
+  }
+
   function calcKelly() {
     const bank = parseFloat(document.getElementById('kBank').value) || 0;
     const odds = parseFloat(document.getElementById('kOdds').value) || 0;
     const prob = parseFloat(document.getElementById('kProb').value) / 100;
     const frac = parseFloat(document.getElementById('kFrac').value);
+    const cap = getKellyCap();
     document.getElementById('kProbOut').textContent = Math.round(prob * 100) + '%';
     if (!odds) return;
     const dec = americanToDecimal(odds);
     const b = dec - 1;
     const q = 1 - prob;
     const kelly = (b * prob - q) / b;
-    const stake = Math.max(0, kelly * frac * bank);
+    const rawStakePct = Math.max(0, kelly * frac);                 // fraction of bankroll the math wants
+    const stakePct = Math.min(rawStakePct, cap);                   // capped fraction
+    const stake = stakePct * bank;
+    const capBinding = rawStakePct > cap && kelly > 0;
     const implied = americanToImplied(odds) * 100;
     const edge = (prob * 100) - implied;
     const evDollars = stake * (prob * b - q);
@@ -1933,9 +2048,12 @@
     else if (kelly < 0.05) v = '<strong style="color: var(--good-text);">Solid edge.</strong> Reasonable bet at the recommended stake.';
     else if (kelly < 0.10) v = '<strong style="color: var(--good-text);">Strong edge.</strong> If your win % estimate is honest, this is a good play.';
     else v = '<strong style="color: var(--warn-text);">Huge edge — sanity check.</strong> Edges this big almost never exist. Re-examine your win % estimate.';
+    if (capBinding) {
+      v += '<br><strong style="color: var(--warn-text);">Cap binding —</strong> math wanted ' + (rawStakePct * 100).toFixed(2) + '% but capped at ' + (cap * 100).toFixed(2) + '%.';
+    }
     document.getElementById('kVerdict').innerHTML = v;
   }
-  ['kBank','kOdds','kProb','kFrac'].forEach(id => document.getElementById(id).addEventListener('input', calcKelly));
+  ['kBank','kOdds','kProb','kFrac','kCap'].forEach(id => document.getElementById(id).addEventListener('input', calcKelly));
   calcKelly();
 
   function calcHedge() {
@@ -2616,6 +2734,576 @@
 
   // Initial paint so summary numbers are populated even before the tab is visited.
   renderLedger();
+
+  // ============================================================
+  // PLAYER PROPS
+  // ============================================================
+  const PROPS_TTL_MS = 10 * 60 * 1000;
+  const PROP_SPORTS = {
+    basketball_nba: { label: 'NBA', markets: [
+      { key: 'player_points',   label: 'Points' },
+      { key: 'player_rebounds', label: 'Rebounds' },
+      { key: 'player_assists',  label: 'Assists' },
+      { key: 'player_threes',   label: 'Threes Made' }
+    ]},
+    icehockey_nhl: { label: 'NHL', markets: [
+      { key: 'player_points',         label: 'Points' },
+      { key: 'player_shots_on_goal',  label: 'Shots on Goal' },
+      { key: 'player_assists',        label: 'Assists' },
+      { key: 'player_goals',          label: 'Goals' }
+    ]},
+    americanfootball_nfl: { label: 'NFL', markets: [
+      { key: 'player_pass_yds',    label: 'Pass Yards' },
+      { key: 'player_pass_tds',    label: 'Pass TDs' },
+      { key: 'player_rush_yds',    label: 'Rush Yards' },
+      { key: 'player_receptions',  label: 'Receptions' },
+      { key: 'player_anytime_td',  label: 'Anytime TD' }
+    ]}
+  };
+
+  const propsState = {
+    sport: 'basketball_nba',
+    events: [],
+    selectedEvents: new Set(),
+    selectedMarkets: new Set(),
+    cache: new Map(),       // 'eventId|market' -> { ts, offers, eventMeta }
+    apiRemaining: null,
+    apiLast: null,
+    lastValueProps: []      // populated by renderPropsBoard for cross-tab buttons
+  };
+
+  function propsKey(eventId, market) { return eventId + '|' + market; }
+
+  function isPropSide(s) { return /^(over|under|yes|no)$/i.test(String(s || '').trim()); }
+
+  // Odds API has been inconsistent about which field carries the player vs the side.
+  // Detect by content rather than position so we tolerate either layout.
+  function normalizePropOutcome(outcome) {
+    const a = (outcome.name || '').trim();
+    const b = (outcome.description || '').trim();
+    let side = '', player = '';
+    if (isPropSide(a))      { side = a; player = b || a; }
+    else if (isPropSide(b)) { side = b; player = a; }
+    else                    { side = a; player = b; }
+    if (side) side = side.charAt(0).toUpperCase() + side.slice(1).toLowerCase();
+    return { side: side, player: player, point: outcome.point, price: outcome.price };
+  }
+
+  function prettyPropMarket(mk) {
+    for (const sk in PROP_SPORTS) {
+      const m = PROP_SPORTS[sk].markets.find(x => x.key === mk);
+      if (m) return m.label;
+    }
+    return mk.replace(/^player_/, '').replace(/_/g, ' ');
+  }
+
+  function updatePropsBudgetBar() {
+    const el = document.getElementById('propsBudgetBar');
+    if (!el) return;
+    if (propsState.apiRemaining == null) {
+      el.textContent = 'Budget: unknown · load events or refresh odds to read remaining calls.';
+    } else {
+      const last = propsState.apiLast != null ? ' · last call cost ' + propsState.apiLast : '';
+      el.textContent = 'Budget: ' + propsState.apiRemaining + ' calls remaining this month' + last;
+    }
+  }
+
+  async function loadPropsEvents() {
+    if (!apiKey) {
+      document.getElementById('propsEventsBox').innerHTML = '<div class="empty">Enter your API key first.</div>';
+      document.getElementById('keyDetails').open = true;
+      return;
+    }
+    const sport = document.getElementById('propsSport').value;
+    propsState.sport = sport;
+    document.getElementById('propsEventsBox').innerHTML = '<div class="empty"><span class="spinner"></span>Fetching events…</div>';
+    document.getElementById('propsMarketsBox').style.display = 'none';
+    document.getElementById('propsBoard').innerHTML = '';
+    const url = 'https://api.the-odds-api.com/v4/sports/' + sport + '/events?apiKey=' + encodeURIComponent(apiKey);
+    try {
+      const res = await fetch(url);
+      const remaining = res.headers.get('x-requests-remaining');
+      const last = res.headers.get('x-requests-last');
+      if (remaining != null) propsState.apiRemaining = parseInt(remaining, 10);
+      if (last != null)      propsState.apiLast      = parseInt(last, 10);
+      updatePropsBudgetBar();
+      if (!res.ok) {
+        let msg = 'Error ' + res.status;
+        if (res.status === 401) msg = 'Invalid API key — double-check it on the-odds-api.com.';
+        else if (res.status === 422) msg = 'Sport not in season or no events available right now.';
+        else if (res.status === 429) msg = 'Out of monthly requests — free tier is 500/month.';
+        document.getElementById('propsEventsBox').innerHTML = '<div class="empty">' + msg + '</div>';
+        return;
+      }
+      const events = await res.json();
+      if (!Array.isArray(events) || !events.length) {
+        document.getElementById('propsEventsBox').innerHTML = '<div class="empty">No upcoming events for ' + (PROP_SPORTS[sport].label) + ' right now. Out of season?</div>';
+        return;
+      }
+      propsState.events = events;
+      propsState.selectedEvents = new Set();
+      renderPropsEvents();
+      renderPropsMarkets();
+      document.getElementById('propsMarketsBox').style.display = '';
+    } catch (err) {
+      document.getElementById('propsEventsBox').innerHTML = '<div class="empty">Network error: ' + err.message + '</div>';
+    }
+  }
+
+  function renderPropsEvents() {
+    const events = propsState.events;
+    if (!events.length) {
+      document.getElementById('propsEventsBox').innerHTML = '<div class="empty">No events loaded.</div>';
+      return;
+    }
+    let html = '<div class="card" style="margin-bottom: 12px;"><div class="game-head"><div class="game-title">Pick events</div><div class="mini">' + events.length + ' upcoming · <a href="#" id="propsSelAll" style="margin-right: 8px;">Select all</a><a href="#" id="propsSelNone">Clear</a></div></div>';
+    events.slice(0, 30).forEach(ev => {
+      const start = new Date(ev.commence_time);
+      const dateStr = start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' · ' + start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+      const checked = propsState.selectedEvents.has(ev.id) ? 'checked' : '';
+      html += '<label style="display: flex; align-items: center; gap: 10px; padding: 6px 0; cursor: pointer; border-top: 1px solid var(--rule);">' +
+        '<input type="checkbox" data-pe="' + escapeHtml(ev.id) + '" ' + checked + ' style="width: auto; margin: 0; padding: 0;">' +
+        '<span style="flex: 1;"><div style="font-size: 13px; color: var(--text);">' + escapeHtml(ev.away_team || '') + ' @ ' + escapeHtml(ev.home_team || '') + '</div><div class="mini">' + dateStr + '</div></span>' +
+      '</label>';
+    });
+    if (events.length > 30) {
+      html += '<div class="mini" style="margin-top: 8px; color: var(--text-dim); font-style: italic;">+ ' + (events.length - 30) + ' more events not shown — pick from the next 30.</div>';
+    }
+    html += '</div>';
+    document.getElementById('propsEventsBox').innerHTML = html;
+    document.querySelectorAll('[data-pe]').forEach(cb => {
+      cb.addEventListener('change', e => {
+        const id = e.currentTarget.dataset.pe;
+        if (e.currentTarget.checked) propsState.selectedEvents.add(id);
+        else propsState.selectedEvents.delete(id);
+        renderPropsCostEstimate();
+      });
+    });
+    const selAll = document.getElementById('propsSelAll');
+    if (selAll) selAll.addEventListener('click', e => {
+      e.preventDefault();
+      propsState.events.slice(0, 30).forEach(ev => propsState.selectedEvents.add(ev.id));
+      renderPropsEvents();
+      renderPropsCostEstimate();
+    });
+    const selNone = document.getElementById('propsSelNone');
+    if (selNone) selNone.addEventListener('click', e => {
+      e.preventDefault();
+      propsState.selectedEvents = new Set();
+      renderPropsEvents();
+      renderPropsCostEstimate();
+    });
+  }
+
+  function renderPropsMarkets() {
+    const sport = propsState.sport;
+    const markets = (PROP_SPORTS[sport] || {}).markets || [];
+    let html = '';
+    markets.forEach(m => {
+      const checked = propsState.selectedMarkets.has(m.key) ? 'checked' : '';
+      html += '<label style="display: inline-flex; align-items: center; gap: 6px; margin: 4px 14px 4px 0; cursor: pointer; font-size: 13px; color: var(--text-muted);">' +
+        '<input type="checkbox" data-pm="' + m.key + '" ' + checked + ' style="width: auto; margin: 0; padding: 0;">' +
+        m.label + ' <span class="mini" style="opacity: 0.55;">(' + m.key + ')</span>' +
+      '</label>';
+    });
+    document.getElementById('propsMarketsList').innerHTML = html;
+    document.querySelectorAll('[data-pm]').forEach(cb => {
+      cb.addEventListener('change', e => {
+        const k = e.currentTarget.dataset.pm;
+        if (e.currentTarget.checked) propsState.selectedMarkets.add(k);
+        else propsState.selectedMarkets.delete(k);
+        renderPropsCostEstimate();
+      });
+    });
+    renderPropsCostEstimate();
+  }
+
+  function renderPropsCostEstimate() {
+    const el = document.getElementById('propsCostEstimate');
+    if (!el) return;
+    const events = propsState.selectedEvents.size;
+    const markets = propsState.selectedMarkets.size;
+    if (events === 0 || markets === 0) {
+      el.innerHTML = '<span class="mini">Pick at least one event and one market to see the cost.</span>';
+      return;
+    }
+    const now = Date.now();
+    let cachedSkipped = 0;
+    let toFetchEvents = 0;
+    let toFetchCost = 0;
+    propsState.selectedEvents.forEach(eid => {
+      let perEvent = 0;
+      propsState.selectedMarkets.forEach(mk => {
+        const c = propsState.cache.get(propsKey(eid, mk));
+        if (c && (now - c.ts) < PROPS_TTL_MS) cachedSkipped++;
+        else perEvent++;
+      });
+      if (perEvent > 0) {
+        toFetchEvents++;
+        toFetchCost += perEvent;
+      }
+    });
+    const remaining = propsState.apiRemaining;
+    const remStr = remaining == null ? '?' : remaining;
+    const willBurnHalf = remaining != null && toFetchCost > remaining * 0.5 && toFetchCost > 0;
+    let warn = '';
+    if (willBurnHalf) warn = ' <span class="pill pill-bad" style="margin-left: 6px;">More than half remaining budget</span>';
+    el.innerHTML = '<div style="font-size: 13px; color: var(--text);">Will use <strong>' + toFetchCost + '</strong> call' + (toFetchCost === 1 ? '' : 's') + ' (' + toFetchEvents + ' event request' + (toFetchEvents === 1 ? '' : 's') + ', 1 credit per market each)' + warn + '</div>' +
+      '<div class="mini" style="margin-top: 4px;">' + cachedSkipped + ' market combo' + (cachedSkipped === 1 ? '' : 's') + ' cached (≤10 min old, free) · ' + remStr + ' calls remaining this month.</div>';
+  }
+
+  async function fetchProps() {
+    const events = Array.from(propsState.selectedEvents);
+    const markets = Array.from(propsState.selectedMarkets);
+    if (!events.length || !markets.length) { toast('Pick events and markets first'); return; }
+    if (!apiKey) {
+      document.getElementById('propsBoard').innerHTML = '<div class="empty">Enter your API key first.</div>';
+      document.getElementById('keyDetails').open = true;
+      return;
+    }
+    // Recompute exactly what to fetch (skipping fresh cache hits).
+    const now = Date.now();
+    const eventMarketsToFetch = [];
+    let toFetchCost = 0;
+    events.forEach(eid => {
+      const need = markets.filter(mk => {
+        const c = propsState.cache.get(propsKey(eid, mk));
+        return !(c && (now - c.ts) < PROPS_TTL_MS);
+      });
+      if (need.length) {
+        eventMarketsToFetch.push({ eventId: eid, markets: need });
+        toFetchCost += need.length;
+      }
+    });
+    const remaining = propsState.apiRemaining;
+    if (remaining != null && toFetchCost > 0 && toFetchCost > remaining * 0.5) {
+      if (!confirm('This will use ' + toFetchCost + ' calls — more than half of your ' + remaining + ' remaining monthly budget. Continue?')) return;
+    }
+    if (toFetchCost === 0) {
+      // Everything cached — straight to render.
+      renderPropsBoard();
+      return;
+    }
+    document.getElementById('propsBoard').innerHTML = '<div class="empty"><span class="spinner"></span>Fetching prop odds…</div>';
+    const region = 'us';
+    for (let i = 0; i < eventMarketsToFetch.length; i++) {
+      const item = eventMarketsToFetch[i];
+      const eventId = item.eventId;
+      const ms = item.markets;
+      document.getElementById('propsBoard').innerHTML = '<div class="empty"><span class="spinner"></span>Fetching ' + (i + 1) + ' of ' + eventMarketsToFetch.length + '… (' + ms.length + ' market' + (ms.length === 1 ? '' : 's') + ')</div>';
+      const url = 'https://api.the-odds-api.com/v4/sports/' + propsState.sport + '/events/' + encodeURIComponent(eventId) +
+        '/odds?apiKey=' + encodeURIComponent(apiKey) +
+        '&regions=' + region +
+        '&markets=' + ms.join(',') +
+        '&oddsFormat=american&dateFormat=iso';
+      try {
+        const res = await fetch(url);
+        const remaining2 = res.headers.get('x-requests-remaining');
+        const last2 = res.headers.get('x-requests-last');
+        if (remaining2 != null) propsState.apiRemaining = parseInt(remaining2, 10);
+        if (last2 != null)      propsState.apiLast      = parseInt(last2, 10);
+        updatePropsBudgetBar();
+        if (!res.ok) {
+          // Cache empty result so we don't immediately re-attempt; user can refetch later.
+          ms.forEach(mk => propsState.cache.set(propsKey(eventId, mk), { ts: Date.now(), offers: [], eventMeta: null }));
+          continue;
+        }
+        const data = await res.json();
+        const eventMeta = { id: data.id, home_team: data.home_team, away_team: data.away_team, commence_time: data.commence_time };
+        // Bucket every outcome into the matching (event,market) cache slot.
+        ms.forEach(mk => {
+          const offers = [];
+          (data.bookmakers || []).forEach(bm => {
+            const m = (bm.markets || []).find(mm => mm.key === mk);
+            if (!m || !Array.isArray(m.outcomes)) return;
+            m.outcomes.forEach(o => {
+              const norm = normalizePropOutcome(o);
+              if (!norm.player || norm.price == null) return;
+              offers.push({ book: bm.title, market: mk, side: norm.side, player: norm.player, point: norm.point, price: norm.price });
+            });
+          });
+          propsState.cache.set(propsKey(eventId, mk), { ts: Date.now(), offers: offers, eventMeta: eventMeta });
+        });
+      } catch (err) {
+        ms.forEach(mk => propsState.cache.set(propsKey(eventId, mk), { ts: Date.now(), offers: [], eventMeta: null }));
+      }
+    }
+    renderPropsBoard();
+    renderPropsCostEstimate();
+  }
+
+  // Group offers by (event, market, player, point); de-vig per book where both sides exist;
+  // leave-one-out median fair prob for each offer. Mirrors buildOpportunities() but keyed on player.
+  function buildPropOpportunities() {
+    const events = Array.from(propsState.selectedEvents);
+    const markets = Array.from(propsState.selectedMarkets);
+    const groups = new Map();
+    events.forEach(eid => {
+      markets.forEach(mk => {
+        const c = propsState.cache.get(propsKey(eid, mk));
+        if (!c || !c.offers) return;
+        const eventMeta = c.eventMeta || { id: eid };
+        c.offers.forEach(off => {
+          if (!off.player) return;
+          const pointKey = (off.point === undefined || off.point === null) ? '' : String(off.point);
+          const groupKey = eid + '||' + mk + '||' + off.player + '||' + pointKey;
+          if (!groups.has(groupKey)) {
+            groups.set(groupKey, {
+              groupKey: groupKey,
+              eventId: eid,
+              eventMeta: eventMeta,
+              market: mk,
+              player: off.player,
+              point: off.point,
+              offers: [],
+              bookFair: {}
+            });
+          }
+          groups.get(groupKey).offers.push(off);
+        });
+      });
+    });
+    const opps = [];
+    groups.forEach(g => {
+      // Per-book de-vig on the two sides this book quotes for THIS exact line.
+      const byBook = {};
+      g.offers.forEach(o => {
+        if (!byBook[o.book]) byBook[o.book] = {};
+        // If a book quotes the same side twice (shouldn't happen) keep the better price.
+        if (!byBook[o.book][o.side] || o.price > byBook[o.book][o.side].price) byBook[o.book][o.side] = o;
+      });
+      Object.keys(byBook).forEach(bk => {
+        const sides = byBook[bk];
+        const sideNames = Object.keys(sides);
+        if (sideNames.length < 2) return;
+        let sum = 0;
+        const imps = {};
+        sideNames.forEach(s => { imps[s] = americanToImplied(sides[s].price); sum += imps[s]; });
+        if (sum <= 0) return;
+        const norm = {};
+        sideNames.forEach(s => norm[s] = imps[s] / sum);
+        g.bookFair[bk] = norm;
+      });
+      const allBooks = Object.keys(g.bookFair);
+      // Compute leave-one-out fair prob for each offer.
+      g.offers.forEach(off => {
+        off.fairProb = null;
+        off.ev = null;
+        off.fairAmerican = null;
+        if (allBooks.length < 2) return;
+        const others = allBooks
+          .filter(b => b !== off.book && g.bookFair[b][off.side] !== undefined)
+          .map(b => g.bookFair[b][off.side]);
+        if (!others.length) return;
+        others.sort((a,b) => a - b);
+        const mid = Math.floor(others.length / 2);
+        const fp = others.length % 2 === 0
+          ? (others[mid - 1] + others[mid]) / 2
+          : others[mid];
+        if (fp <= 0 || fp >= 1) return;
+        const dec = americanToDecimal(off.price);
+        off.fairProb = fp;
+        off.ev = (fp * dec - 1) * 100;
+        off.fairAmerican = decimalToAmerican(1 / fp);
+        const pretty = prettyPropMarket(g.market);
+        const pointStr = (g.point === undefined || g.point === null) ? '' : ' ' + g.point;
+        const propLabel = g.player + ' ' + off.side + pointStr + ' ' + pretty;
+        opps.push({
+          groupKey: g.groupKey,
+          eventId: g.eventId,
+          eventMeta: g.eventMeta,
+          market: g.market,
+          marketLabel: pretty,
+          player: g.player,
+          point: g.point,
+          side: off.side,
+          book: off.book,
+          american: off.price,
+          decimal: dec,
+          fairProb: fp,
+          fairAmerican: off.fairAmerican,
+          ev: off.ev,
+          propLabel: propLabel
+        });
+      });
+    });
+    return { groups: groups, opps: opps };
+  }
+
+  function renderPropsBoard() {
+    const events = Array.from(propsState.selectedEvents);
+    const markets = Array.from(propsState.selectedMarkets);
+    if (!events.length || !markets.length) {
+      document.getElementById('propsBoard').innerHTML = '<div class="empty">Pick events and markets, then click Fetch props.</div>';
+      return;
+    }
+    const built = buildPropOpportunities();
+    const groups = built.groups;
+    const opps = built.opps;
+    if (!groups.size) {
+      document.getElementById('propsBoard').innerHTML = '<div class="empty">No prop offers loaded for the current selection. Either no books quote these markets right now, or none of the events have been fetched yet.</div>';
+      return;
+    }
+    propsState.lastValueProps = opps;
+
+    // Sort groups: best-EV first (using the highest EV on either side), then alphabetical.
+    const groupArr = Array.from(groups.values());
+    groupArr.forEach(g => {
+      let bestEv = -Infinity;
+      g.offers.forEach(o => { if (o.ev != null && o.ev > bestEv) bestEv = o.ev; });
+      g._bestEv = bestEv === -Infinity ? null : bestEv;
+    });
+    groupArr.sort((a, b) => {
+      const ea = a._bestEv == null ? -1e9 : a._bestEv;
+      const eb = b._bestEv == null ? -1e9 : b._bestEv;
+      if (eb !== ea) return eb - ea;
+      if (a.player < b.player) return -1;
+      if (a.player > b.player) return 1;
+      return 0;
+    });
+
+    const sideOrder = ['Over', 'Under', 'Yes', 'No'];
+    let html = '<div class="mini" style="margin-bottom: 10px;">' + groupArr.length + ' player-market lines · sorted by best +EV.</div>';
+    groupArr.forEach(g => {
+      const meta = g.eventMeta || {};
+      const matchup = (meta.away_team && meta.home_team) ? (meta.away_team + ' @ ' + meta.home_team) : '';
+      const pretty = prettyPropMarket(g.market);
+      const pointStr = (g.point === undefined || g.point === null) ? '' : ' ' + g.point;
+      const sidesSeen = Array.from(new Set(g.offers.map(o => o.side))).sort((a, b) => {
+        const ai = sideOrder.indexOf(a); const bi = sideOrder.indexOf(b);
+        return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+      });
+      const books = Array.from(new Set(g.offers.map(o => o.book))).sort();
+      const bestPrice = {};
+      sidesSeen.forEach(s => {
+        let best = -Infinity;
+        g.offers.forEach(o => { if (o.side === s && o.price > best) best = o.price; });
+        bestPrice[s] = best;
+      });
+      let topEvOffer = null;
+      g.offers.forEach(o => { if (o.ev != null && (!topEvOffer || o.ev > topEvOffer.ev)) topEvOffer = o; });
+
+      html += '<div class="card" style="margin-bottom: 10px; padding: 12px 14px;">';
+      html += '<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; padding-bottom: 8px; border-bottom: 1px solid var(--rule); margin-bottom: 10px;">';
+      html += '<div><div style="font-size: 14px; font-weight: 700; color: var(--text);">' + escapeHtml(g.player) + '</div><div class="mini" style="margin-top: 2px;">' + escapeHtml(pretty) + pointStr + (matchup ? ' · ' + escapeHtml(matchup) : '') + '</div></div>';
+      if (topEvOffer && topEvOffer.ev > 0) {
+        const pillCls = topEvOffer.ev > 3 ? 'pill-good' : 'pill-info';
+        html += '<span class="pill ' + pillCls + '">+' + topEvOffer.ev.toFixed(2) + '% EV · ' + escapeHtml(topEvOffer.side) + ' @ ' + escapeHtml(topEvOffer.book) + '</span>';
+      }
+      html += '</div>';
+
+      // Per-book grid: rows = books, columns = sides
+      html += '<div class="scrollx"><table><thead><tr><th>Book</th>';
+      sidesSeen.forEach(s => html += '<th style="text-align: center;">' + escapeHtml(s) + pointStr + '</th>');
+      html += '</tr></thead><tbody>';
+      books.forEach(bk => {
+        html += '<tr><td style="color: var(--text-muted);">' + escapeHtml(bk) + '</td>';
+        sidesSeen.forEach(s => {
+          const o = g.offers.find(x => x.book === bk && x.side === s);
+          if (!o) html += '<td style="text-align: center; color: var(--text-dim);">—</td>';
+          else {
+            const isBest = o.price === bestPrice[s];
+            html += '<td style="padding: 3px 4px;"><div class="book-cell ' + (isBest ? 'book-best' : 'book-norm') + '">' + fmtAm(o.price) + '</div></td>';
+          }
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table></div>';
+
+      // +EV pill row with cross-tab buttons.
+      const evOffers = g.offers.filter(o => o.ev != null && o.ev > 0).sort((a,b) => b.ev - a.ev);
+      if (evOffers.length) {
+        html += '<div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">';
+        evOffers.forEach(o => {
+          // Resolve this offer's index in lastValueProps so the buttons can find it later.
+          let idx = -1;
+          for (let j = 0; j < propsState.lastValueProps.length; j++) {
+            const p = propsState.lastValueProps[j];
+            if (p.eventId === g.eventId && p.market === g.market && p.player === g.player && p.point === g.point && p.side === o.side && p.book === o.book) { idx = j; break; }
+          }
+          const pillCls = o.ev > 3 ? 'pill-good' : 'pill-info';
+          html += '<div style="display: inline-flex; gap: 6px; align-items: center; padding: 5px 8px; border: 1px solid var(--rule-strong); border-radius: var(--radius); background: var(--bg-deep);">' +
+            '<span class="pill ' + pillCls + '">+' + o.ev.toFixed(2) + '% EV</span>' +
+            '<span class="mini">' + escapeHtml(o.side) + pointStr + ' · ' + escapeHtml(o.book) + ' @ ' + fmtAm(o.price) + ' (fair ≈ ' + fmtAm(o.fairAmerican) + ')</span>' +
+            (idx >= 0 ? ' <button class="log-btn" data-plog="' + idx + '">Log this prop</button>' : '') +
+            (idx >= 0 ? ' <button class="log-btn" data-pparlay="' + idx + '">Send to Parlay</button>' : '') +
+          '</div>';
+        });
+        html += '</div>';
+      }
+      html += '</div>';
+    });
+    document.getElementById('propsBoard').innerHTML = html;
+    document.querySelectorAll('[data-plog]').forEach(b => b.addEventListener('click', e => logPropOpp(+e.currentTarget.dataset.plog)));
+    document.querySelectorAll('[data-pparlay]').forEach(b => b.addEventListener('click', e => sendPropToParlay(+e.currentTarget.dataset.pparlay)));
+  }
+
+  function logPropOpp(idx) {
+    const o = propsState.lastValueProps[idx];
+    if (!o) { toast('Prop no longer in view'); return; }
+    const meta = o.eventMeta || {};
+    const matchup = (meta.away_team && meta.home_team) ? (meta.away_team + ' @ ' + meta.home_team) : '';
+    const dec = o.decimal;
+    const halfK = halfKellyPct(dec, o.fairProb);
+    const bankroll = parseFloat(document.getElementById('kBank').value) || 100;
+    const suggestedStake = Math.max(1, Math.round((halfK / 100) * bankroll));
+    const stakeStr = prompt('Stake (CAD) for ' + o.propLabel + ':', suggestedStake);
+    if (stakeStr === null) return;
+    const stake = parseFloat(stakeStr);
+    if (isNaN(stake) || stake <= 0) { toast('Invalid stake'); return; }
+    addToLedger({
+      sport: (PROP_SPORTS[propsState.sport] || {}).label || propsState.sport || '',
+      matchup: matchup,
+      pick: o.propLabel,
+      market: 'prop',
+      propType: o.market,
+      player: o.player,
+      point: o.point,
+      side: o.side,
+      american: o.american,
+      decimal: dec,
+      stake: stake,
+      fairProb: o.fairProb,
+      evPct: o.ev,
+      halfKelly: halfK,
+      book: o.book
+    });
+  }
+
+  function sendPropToParlay(idx) {
+    const o = propsState.lastValueProps[idx];
+    if (!o) { toast('Prop no longer in view'); return; }
+    const meta = o.eventMeta || {};
+    const gameLabel = (meta.away_team && meta.home_team) ? (meta.away_team + ' @ ' + meta.home_team) : '';
+    parlayLegs.push({
+      name: o.propLabel,
+      odds: o.american,
+      gameLabel: gameLabel,
+      sameGame: false
+    });
+    renderParlay();
+    // Switch to Parlay builder tab so the user sees the leg landed.
+    document.querySelectorAll('.tab[data-tab]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+    const tabBtn = document.querySelector('.tab[data-tab="parlay"]');
+    const pane = document.querySelector('[data-pane="parlay"]');
+    if (tabBtn) tabBtn.classList.add('active');
+    if (pane) pane.classList.add('active');
+    toast('Added to parlay');
+  }
+
+  document.getElementById('propsLoadEvents').addEventListener('click', loadPropsEvents);
+  document.getElementById('propsFetchBtn').addEventListener('click', fetchProps);
+  document.getElementById('propsSport').addEventListener('change', () => {
+    propsState.sport = document.getElementById('propsSport').value;
+    propsState.events = [];
+    propsState.selectedEvents = new Set();
+    propsState.selectedMarkets = new Set();
+    document.getElementById('propsEventsBox').innerHTML = '<div class="empty">Click "Load events" to fetch upcoming ' + (PROP_SPORTS[propsState.sport].label) + ' games. Costs 1 API call.</div>';
+    document.getElementById('propsMarketsBox').style.display = 'none';
+    document.getElementById('propsBoard').innerHTML = '';
+  });
+  updatePropsBudgetBar();
 
 })();
 </script>
